@@ -1,0 +1,6 @@
+<#
+    Session["ResourceFile"] = "LibSqlStrings.resx";
+    Session["ResourceNamespace"] = "Microsoft.EntityFrameworkCore.LibSql.Properties";
+    Session["LoggingDefinitionsClass"] = "Diagnostics.Internal.LibSqlLoggingDefinitions";
+#>
+<#@ include file="..\..\..\tools\Resources.tt" #>

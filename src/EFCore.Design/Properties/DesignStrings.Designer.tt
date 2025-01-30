@@ -1,0 +1,7 @@
+<#
+    Session["ResourceFile"] = "DesignStrings.resx";
+    Session["ResourceNamespace"] = "Microsoft.EntityFrameworkCore.Properties";
+    Session["LoggingDefinitionsClass"] = "DesignLoggingDefinitions";
+    Session["NoDiagnostics"] = true;
+#>
+<#@ include file="..\..\..\tools\Resources.tt" #>

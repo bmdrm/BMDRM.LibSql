@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RunSettings>
+  <RunConfiguration>
+    <EnvironmentVariables>
+      <LIBSQL_TEST_CONNECTION>https://{db}.io/v2/pipeline;jwttoken</LIBSQL_TEST_CONNECTION>
+    </EnvironmentVariables>
+  </RunConfiguration>
+</RunSettings>
