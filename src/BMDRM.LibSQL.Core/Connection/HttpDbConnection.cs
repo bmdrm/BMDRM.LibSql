@@ -2,7 +2,6 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Data;
-using System.Data.Common;
 using System.Diagnostics.CodeAnalysis;
 using System.Net.Http.Headers;
 
@@ -18,6 +17,7 @@ public class HttpDbConnection : DbConnection
     private ConnectionState _state = ConnectionState.Closed;
     private string _connectionString;
     private HttpClient? _httpClient;
+
     /// <summary>
     /// Default timeout
     /// </summary>
@@ -58,7 +58,7 @@ public class HttpDbConnection : DbConnection
     /// </summary>
     /// <value>The connection string for the database connection.</value>
     [AllowNull]
-    public override string ConnectionString
+    public sealed override string ConnectionString
     {
         get => _connectionString;
         [MemberNotNull(nameof(_connectionString))]
@@ -69,25 +69,29 @@ public class HttpDbConnection : DbConnection
     /// Gets the name of the database to which the connection is made.
     /// </summary>
     /// <value>The name of the database, which is set to "LibSQL" in this implementation.</value>
-    public override string Database => "LibSQL";
+    public override string Database
+        => "LibSQL";
 
     /// <summary>
     /// Gets the name of the data source for the connection.
     /// </summary>
     /// <value>The name of the data source, which is set to "LibSQL HTTP API" in this implementation.</value>
-    public override string DataSource => "LibSQL HTTP API";
+    public override string DataSource
+        => "LibSQL HTTP API";
 
     /// <summary>
     /// Gets the version of the database server.
     /// </summary>
     /// <value>The version of the server.</value>
-    public override string ServerVersion => "2";
+    public override string ServerVersion
+        => "2";
 
     /// <summary>
     /// Gets the current state of the connection.
     /// </summary>
     /// <value>The state of the connection.</value>
-    public override ConnectionState State => _state;
+    public override ConnectionState State
+        => _state;
 
     /// <summary>
     /// Opens the connection to the database.
@@ -150,6 +154,7 @@ public class HttpDbConnection : DbConnection
             _currentTransaction.Dispose();
             _currentTransaction = null;
         }
+
         if (_state == ConnectionState.Closed)
         {
             return;
@@ -171,6 +176,7 @@ public class HttpDbConnection : DbConnection
         {
             command.CommandTimeout = DefaultTimeout;
         }
+
         return command;
     }
 
@@ -189,7 +195,6 @@ public class HttpDbConnection : DbConnection
     /// </summary>
     /// <param name="isolationLevel">The isolation level for the transaction.</param>
     /// <returns>A new <see cref="DbTransaction"/>.</returns>
-
     protected override DbTransaction BeginDbTransaction(IsolationLevel isolationLevel)
     {
         _currentTransaction?.Dispose();
@@ -197,7 +202,6 @@ public class HttpDbConnection : DbConnection
         _currentTransaction = new HttpDbTransaction(this, isolationLevel, mode);
         return _currentTransaction;
     }
-
 
     /// <summary>
     /// Disposes of the resources used by the <see cref="HttpDbConnection"/> class.
@@ -212,8 +216,10 @@ public class HttpDbConnection : DbConnection
                 _currentTransaction.Dispose();
                 _currentTransaction = null;
             }
+
             Close();
         }
+
         base.Dispose(disposing);
     }
 
@@ -221,7 +227,7 @@ public class HttpDbConnection : DbConnection
     /// EnlistTransaction
     /// </summary>
     /// <param name="transaction">Transaction </param>
-    public override void EnlistTransaction(System.Transactions.Transaction? transaction) {}
+    public override void EnlistTransaction(System.Transactions.Transaction? transaction) { }
 
     internal HttpClient GetClient()
     {
@@ -231,9 +237,18 @@ public class HttpDbConnection : DbConnection
         }
 
         var connectionData = ConnectionString.Split(';');
+
+        // Check for the correct number of parts (at least 2: URL and token)
         if (connectionData.Length < 2)
         {
-            throw new InvalidOperationException("Connection string must include both base address and Bearer token.");
+            throw new InvalidOperationException(
+                "Invalid connection string format.  Expected format: 'http(s)://<url>/v2/pipeline;<token>'.  Ensure both the URL and token are provided, separated by a semicolon.");
+        }
+
+        if (connectionData.Length > 2)
+        {
+            throw new InvalidOperationException(
+                "Invalid connection string format. Expected format: 'http(s)://<url>/v2/pipeline;<token>'.  Only the URL and the token are expected.");
         }
 
         var baseAddress = connectionData[0].TrimEnd('/');
@@ -241,23 +256,39 @@ public class HttpDbConnection : DbConnection
 
         if (string.IsNullOrWhiteSpace(baseAddress))
         {
-            throw new InvalidOperationException("Base address cannot be null or empty.");
+            throw new InvalidOperationException("The base address (URL) in the connection string cannot be null or empty.");
+        }
+
+        if (!baseAddress.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+            && !baseAddress.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("The base address (URL) must start with 'http://' or 'https://'.");
+        }
+
+        if (!Uri.TryCreate(baseAddress, UriKind.Absolute, out Uri? parsedUri))
+        {
+            throw new InvalidOperationException("The base address is not a valid URL");
         }
 
         if (string.IsNullOrWhiteSpace(bearerToken))
         {
-            throw new InvalidOperationException("Bearer token cannot be null or empty.");
+            throw new InvalidOperationException("The bearer token in the connection string cannot be null or empty.");
+        }
+
+        if (bearerToken.Contains(' '))
+        {
+            throw new InvalidOperationException("The bearer token must not contain spaces");
         }
 
         _httpClient = _httpClientFactory.CreateClient();
-        _httpClient.BaseAddress = new Uri(baseAddress);
+        _httpClient.BaseAddress = parsedUri;
 
-        // Add Bearer token to the Authorization header
         _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", bearerToken);
 
-        return _httpClient ?? throw new InvalidOperationException("Connection is not open");
+        return _httpClient
+            ?? throw new InvalidOperationException(
+                "Failed to create HttpClient.  The connection may not be open, or there may be an issue with the IHttpClientFactory.");
     }
-
 
     /// <summary>
     /// Creates a custom SQL function that can be used in SQL queries.
@@ -281,11 +312,12 @@ public class HttpDbConnection : DbConnection
     /// <param name="isDeterministic">True if the function always returns the same result for the same input.</param>
     public void CreateFunction<T1, TResult>(string name, Func<T1?, TResult?> function, bool isDeterministic = false)
     {
-        _customFunctions[name] = new LibSqlFunction<T1, TResult>(name, args =>
-        {
-            var arg1 = args.Length > 0 ? (T1?)Convert.ChangeType(args[0], typeof(T1)) : default;
-            return function(arg1);
-        }, isDeterministic);
+        _customFunctions[name] = new LibSqlFunction<T1, TResult>(
+            name, args =>
+            {
+                var arg1 = args.Length > 0 ? (T1?)Convert.ChangeType(args[0], typeof(T1)) : default;
+                return function(arg1);
+            }, isDeterministic);
     }
 
     /// <summary>
@@ -299,12 +331,13 @@ public class HttpDbConnection : DbConnection
     /// <param name="isDeterministic">True if the function always returns the same result for the same input.</param>
     public void CreateFunction<T1, T2, TResult>(string name, Func<T1?, T2?, TResult?> function, bool isDeterministic = false)
     {
-        _customFunctions[name] = new LibSqlFunction<T1, T2, TResult>(name, args =>
-        {
-            var arg1 = args.Length > 0 ? (T1?)Convert.ChangeType(args[0], typeof(T1)) : default;
-            var arg2 = args.Length > 1 ? (T2?)Convert.ChangeType(args[1], typeof(T2)) : default;
-            return function(arg1, arg2);
-        }, isDeterministic);
+        _customFunctions[name] = new LibSqlFunction<T1, T2, TResult>(
+            name, args =>
+            {
+                var arg1 = args.Length > 0 ? (T1?)Convert.ChangeType(args[0], typeof(T1)) : default;
+                var arg2 = args.Length > 1 ? (T2?)Convert.ChangeType(args[1], typeof(T2)) : default;
+                return function(arg1, arg2);
+            }, isDeterministic);
     }
 
     /// <summary>
@@ -312,6 +345,6 @@ public class HttpDbConnection : DbConnection
     /// </summary>
     /// <param name="name">The name of the function.</param>
     /// <returns>The custom function if found, null otherwise.</returns>
-    internal ILibSqlFunction? GetFunction(string name) =>
-        _customFunctions.TryGetValue(name, out var function) ? function : null;
+    internal ILibSqlFunction? GetFunction(string name)
+        => _customFunctions.TryGetValue(name, out var function) ? function : null;
 }

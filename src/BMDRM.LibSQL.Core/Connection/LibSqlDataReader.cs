@@ -43,6 +43,39 @@ internal class LibSqlDataReader : DbDataReader
             return (T)(object)GetTextReader(ordinal);
         }
 
+        if (typeof(T) == typeof(DateTimeOffset))
+        {
+            var value = GetValue(ordinal);
+
+            if (value == DBNull.Value)
+            {
+                return (T)(object)DBNull.Value;
+            }
+
+            switch (value)
+            {
+                case DateTimeOffset dateTimeOffsetValue:
+                    return (T)(object)dateTimeOffsetValue;
+                case string str when DateTimeOffset.TryParse(str, CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsedDateTimeOffset):
+                    return (T)(object)parsedDateTimeOffset;
+                case string str:
+                    throw new InvalidCastException($"Unable to convert string '{str}' to DateTimeOffset.  Invalid format.");
+                case DateTime dateTime:
+                    return (T)(object)new DateTimeOffset(dateTime, TimeZoneInfo.Local.GetUtcOffset(dateTime));
+                case long longValue:
+                    try
+                    {
+                        return (T)(object)DateTimeOffset.FromUnixTimeSeconds(longValue);
+                    }
+                    catch (Exception)
+                    {
+                        throw new InvalidCastException($"Unable to convert long '{longValue}' to DateTimeOffset.  Invalid Unix timestamp.");
+                    }
+                default:
+                    throw new InvalidCastException($"Unable to convert {value.GetType().Name} to DateTimeOffset");
+            }
+        }
+
         if (typeof(T) == typeof(TimeSpan))
         {
             var value = GetValue(ordinal);
@@ -57,17 +90,17 @@ internal class LibSqlDataReader : DbDataReader
                 return (T)(object)timeSpanValue;
             }
 
-            if (value is string str)
+            if (value is not string str)
             {
-                if (TimeSpan.TryParse(str, CultureInfo.InvariantCulture, out var parsedTimeSpan))
-                {
-                    return (T)(object)parsedTimeSpan;
-                }
-
-                throw new FormatException($"Unrecognized TimeSpan format value: {str}");
+                return base.GetFieldValue<T>(ordinal)!;
             }
 
-            throw new FormatException($"Unable to convert {value.GetType().Name} to TimeSpan");
+            if (TimeSpan.TryParse(str, CultureInfo.InvariantCulture, out var parsedTimeSpan))
+            {
+                return (T)(object)parsedTimeSpan;
+            }
+
+            return base.GetFieldValue<T>(ordinal)!;
         }
 
         return base.GetFieldValue<T>(ordinal)!;

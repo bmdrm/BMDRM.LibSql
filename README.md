@@ -46,23 +46,36 @@ After 18 months of wrestling with LibSQL's driver gaps, BMDRM engineered this pr
 
 ## Get Started
 
-1. **Install**
+1.  **Install Packages:**
+
+    This provider requires the core Entity Framework Core packages. Install them along with `BMDRM.LibSql.Core`:
+
+    ```bash
+    dotnet add package BMDRM.LibSql.Core --version 8.0.32
+    dotnet add package Microsoft.EntityFrameworkCore --version 8.0.11
+    dotnet add package Microsoft.EntityFrameworkCore.Relational --version 8.0.11
+    dotnet add package Microsoft.EntityFrameworkCore.Design --version 8.0.11
+    ```
+    **Important Notes:**
+    *   We explicitly specify version `8.0.11` for the `Microsoft.EntityFrameworkCore` packages.  While `BMDRM.LibSql.Core` version `8.0.32` is designed for EF Core 8, there are known compatibility issues with later versions and with .NET 9 previews.  Using these specific versions ensures the most stable experience until full .NET 9 support is released.
+    *   You *do not* need to explicitly install `Microsoft.EntityFrameworkCore.Analyzers` or `Microsoft.EntityFrameworkCore.Abstractions` as those are dependencies pulled in automatically.
+    *  We will remove the mention of specific versions of EF Core packages when 9.0 support is added.
+2.  **Install**
 ```bash
 dotnet add package BMDRM.LibSql.Core --version 8.0.32
 ```
 
-2. **Configure**
+3  .**Configure**
 ```csharp
 // Startup.cs
 services.AddDbContext<AppDbContext>(options =>
-    options.UseLibSql(config.GetConnectionString("LibSQL"),
-    x => x.EnableRetryOnFailure()));
+    options.UseLibSql(config.GetConnectionString("LibSQL"));
 ```
 
-3. **Deploy**
+4   .**Deploy**
 ```bash
 # Uses LibSQL's native migration engine
-dotnet ef database update --connection "https://cluster.turso.io;jwt=your_token"
+dotnet ef database update
 ```
 
 ---
@@ -71,9 +84,6 @@ dotnet ef database update --connection "https://cluster.turso.io;jwt=your_token"
 
 ```
 /src/EFCore.LibSQL.Core
-├── /BattleTested         # BMDRM's production-hardened components
-│   ├── ChaosInjector.cs  # Simulates network failures
-│   └── BulkOpsEngine.cs  # 50K writes/sec proven
 ├── /Connection           # HTTP/2 connection pooling
 ├── /Security             # JWT/NKey authentication
 └── /BMDRM.Extensions     # Our proprietary optimizations
