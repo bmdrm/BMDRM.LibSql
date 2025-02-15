@@ -56,19 +56,19 @@ public static class LibSqlDbContextOptionsBuilderExtensions
     /// </remarks>
     /// <param name="optionsBuilder">The builder being used to configure the context.</param>
     /// <param name="connectionString">The connection string of the database to connect to.</param>
-    /// <param name="LibSqlOptionsAction">An optional action to allow additional LibSql specific configuration.</param>
+    /// <param name="libSqlOptionsAction">An optional action to allow additional LibSql specific configuration.</param>
     /// <returns>The options builder so that further configuration can be chained.</returns>
     public static DbContextOptionsBuilder UseLibSql(
         this DbContextOptionsBuilder optionsBuilder,
-        string? connectionString,
-        Action<LibSqlDbContextOptionsBuilder>? LibSqlOptionsAction = null)
+        string connectionString,
+        Action<LibSqlDbContextOptionsBuilder>? libSqlOptionsAction = null)
     {
-        var extension = (LibSqlOptionsExtension)GetOrCreateExtension(optionsBuilder).WithConnectionString(connectionString);
+        var extension = (LibSqlOptionsExtension)GetOrCreateExtension(optionsBuilder, connectionString).WithConnectionString(connectionString);
         ((IDbContextOptionsBuilderInfrastructure)optionsBuilder).AddOrUpdateExtension(extension);
 
         ConfigureWarnings(optionsBuilder);
 
-        LibSqlOptionsAction?.Invoke(new LibSqlDbContextOptionsBuilder(optionsBuilder));
+        libSqlOptionsAction?.Invoke(new LibSqlDbContextOptionsBuilder(optionsBuilder));
 
         return optionsBuilder;
     }
@@ -168,15 +168,15 @@ public static class LibSqlDbContextOptionsBuilderExtensions
     /// <typeparam name="TContext">The type of context to be configured.</typeparam>
     /// <param name="optionsBuilder">The builder being used to configure the context.</param>
     /// <param name="connectionString">The connection string of the database to connect to.</param>
-    /// <param name="LibSqlOptionsAction">An optional action to allow additional LibSql specific configuration.</param>
+    /// <param name="libSqlOptionsAction">An optional action to allow additional LibSql specific configuration.</param>
     /// <returns>The options builder so that further configuration can be chained.</returns>
     public static DbContextOptionsBuilder<TContext> UseLibSql<TContext>(
         this DbContextOptionsBuilder<TContext> optionsBuilder,
-        string? connectionString,
-        Action<LibSqlDbContextOptionsBuilder>? LibSqlOptionsAction = null)
+        string connectionString,
+        Action<LibSqlDbContextOptionsBuilder>? libSqlOptionsAction = null)
         where TContext : DbContext
         => (DbContextOptionsBuilder<TContext>)UseLibSql(
-            (DbContextOptionsBuilder)optionsBuilder, connectionString, LibSqlOptionsAction);
+            (DbContextOptionsBuilder)optionsBuilder, connectionString, libSqlOptionsAction);
 
     /// <summary>
     ///     Configures the context to connect to a LibSql database.
@@ -233,9 +233,9 @@ public static class LibSqlDbContextOptionsBuilderExtensions
         => (DbContextOptionsBuilder<TContext>)UseLibSql(
             (DbContextOptionsBuilder)optionsBuilder, connection, contextOwnsConnection, LibSqlOptionsAction);
 
-    private static LibSqlOptionsExtension GetOrCreateExtension(DbContextOptionsBuilder options)
+    private static LibSqlOptionsExtension GetOrCreateExtension(DbContextOptionsBuilder options, string connectionString = "")
         => options.Options.FindExtension<LibSqlOptionsExtension>()
-            ?? new LibSqlOptionsExtension();
+            ?? new LibSqlOptionsExtension(connectionString);
 
     private static void ConfigureWarnings(DbContextOptionsBuilder optionsBuilder)
     {

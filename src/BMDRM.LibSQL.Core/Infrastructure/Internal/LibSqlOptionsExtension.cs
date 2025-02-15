@@ -23,15 +23,14 @@ public class LibSqlOptionsExtension : RelationalOptionsExtension
     /// <summary>
     /// Initializes a new instance of the <see cref="LibSqlOptionsExtension"/> class.
     /// </summary>
-    /// <param name="connectionString">The connection string to the LibSQL database in the format "http://url;apiauthentication".</param>
+    /// <param name="connectionString">The connection string to the LibSQL database in the format https://url/v2/pipeline;token".</param>
     public LibSqlOptionsExtension(string connectionString)
     {
-        // Check for null or empty connection string
         if (string.IsNullOrEmpty(connectionString))
         {
             _url = string.Empty;
             _apiAuthentication = string.Empty;
-            return;
+            throw new InvalidOperationException($"Connection string '{connectionString}' is invalid. It should be in the form https://url/v2/pipeline;token");
         }
 
         var parts = connectionString.Split(';');
@@ -45,7 +44,7 @@ public class LibSqlOptionsExtension : RelationalOptionsExtension
         {
             _url = string.Empty;
             _apiAuthentication = string.Empty;
-            throw new InvalidOperationException($"Connection string '{connectionString}' is invalid. It should be in the form url;apikey");
+            throw new InvalidOperationException($"Connection string '{connectionString}' is invalid. It should be in the form https://url/v2/pipeline;token");
         }
     }
 
@@ -55,6 +54,10 @@ public class LibSqlOptionsExtension : RelationalOptionsExtension
     /// </summary>
     public LibSqlOptionsExtension()
     {
+        if (string.IsNullOrEmpty(ConnectionString))
+        {
+            throw new InvalidOperationException($"Connection string '{ConnectionString}' is invalid. It should be in the form https://url/v2/pipeline;token");
+        }
     }
     /// <summary>
     /// Gets the URL for the LibSQL database.
@@ -82,7 +85,6 @@ public class LibSqlOptionsExtension : RelationalOptionsExtension
             _url,
             _apiAuthentication);
         services.AddEntityFrameworkLibSql();
-
     }
 
     /// <summary>
