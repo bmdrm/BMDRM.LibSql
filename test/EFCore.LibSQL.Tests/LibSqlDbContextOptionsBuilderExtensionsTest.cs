@@ -32,25 +32,33 @@ public class LibSqlDbContextOptionsBuilderExtensionsTest
         Assert.Null(extension.Connection);
     }
 
-    [ConditionalTheory]
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public void Can_add_extension_with_connection_string_using_generic_options(bool nullConnectionString)
     {
         var optionsBuilder = new DbContextOptionsBuilder<DbContext>();
-        optionsBuilder.UseLibSql(nullConnectionString ? null : LibSqlTestSettings.ConnectionString);
-
-        var extension = optionsBuilder.Options.Extensions.OfType<LibSqlOptionsExtension>().Single();
 
         if (nullConnectionString)
         {
-            Assert.Null(extension.ConnectionString);
+            var ex = Assert.Throws<InvalidOperationException>(() =>
+            {
+                optionsBuilder.UseLibSql(null);
+            });
+
+            Assert.Equal($"Connection string '' is invalid. It should be in the form https://url/v2/pipeline;token", ex.Message);
         }
         else
         {
-            Assert.Equal(LibSqlTestSettings.ConnectionString, extension.ConnectionString);
-        }
+            optionsBuilder.UseLibSql(LibSqlTestSettings.ConnectionString);
 
-        Assert.Null(extension.Connection);
+            var extension = optionsBuilder.Options.Extensions
+                .OfType<LibSqlOptionsExtension>()
+                .Single();
+
+            Assert.Equal(LibSqlTestSettings.ConnectionString, extension.ConnectionString);
+            Assert.Null(extension.Connection);
+        }
     }
+
 }

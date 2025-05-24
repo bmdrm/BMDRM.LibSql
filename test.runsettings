@@ -2,7 +2,7 @@
 <RunSettings>
   <RunConfiguration>
     <EnvironmentVariables>
-      <LIBSQL_TEST_CONNECTION>https://{db}.io/v2/pipeline;jwttoken</LIBSQL_TEST_CONNECTION>
+      <LIBSQL_TEST_CONNECTION>https://thumbnailsdb-monembjd.aws-eu-west-3.turso.io/v2/pipeline;eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3MzU1NDcyNTAsImlkIjoiZDg0NDZlZWYtNGE4ZC00MTgzLWJjZjQtNGQ5OTZjZDJmM2NmIn0.jNTw0iqZZHCkcR0yB6vFG_AwCmvJDgWPhRp27YYRQqpSO5RDx4h5qCi_IptKHmjQ2PbCUIOJRiQY5i0Q5ylZAg</LIBSQL_TEST_CONNECTION>
     </EnvironmentVariables>
   </RunConfiguration>
 </RunSettings>

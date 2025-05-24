@@ -102,7 +102,6 @@ namespace Microsoft.EntityFrameworkCore.LibSql.Internal
 
         private static IServiceScope CreateServiceScope(string connectionString = "")
         {
-            Console.WriteLine("Connection String loaded from appsettings.json.");
 
             var serviceProvider = new ServiceCollection()
                 .AddLibSql<DbContext>(connectionString)

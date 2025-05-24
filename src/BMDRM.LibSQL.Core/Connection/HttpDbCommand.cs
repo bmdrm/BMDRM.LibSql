@@ -227,80 +227,82 @@ public class HttpDbCommand : DbCommand
             return ProcessInsert(resultsArray);
         }
 
-        if (sqlOperation == "UPDATE" || sqlOperation == "DELETE")
+        if (sqlOperation is not ("UPDATE" or "DELETE"))
         {
-            int rowsAffected = 0;
+            return null;
+        }
 
-            // Find verification result
-            var verifyResult = resultsArray.FirstOrDefault(
-                r => r.TryGetProperty("response", out var vResp)
-                    && vResp.TryGetProperty("result", out var vResult)
-                    && vResult.TryGetProperty("rows", out var vRows)
-                    && vRows.GetArrayLength() > 0
-                    && vRows[0].GetArrayLength() > 0
-                    && vResp.TryGetProperty("type", out var vType)
-                    && vType.GetString() == "execute"
-            );
+        var rowsAffected = 0;
 
-            if (verifyResult.ValueKind != JsonValueKind.Undefined)
+        var verifyResult = resultsArray.FirstOrDefault(r => r.TryGetProperty("response", out var vResp)
+            && vResp.TryGetProperty("result", out var vResult)
+            && vResult.TryGetProperty("rows", out var vRows)
+            && vRows.GetArrayLength() > 0
+            && vRows[0].GetArrayLength() > 0
+            && vResp.TryGetProperty("type", out var vType)
+            && vType.GetString() == "execute"
+        );
+
+        if (verifyResult.ValueKind != JsonValueKind.Undefined)
+        {
+            if (verifyResult.TryGetProperty("response", out var vResp)
+                && vResp.TryGetProperty("result", out var vResult)
+                && vResult.TryGetProperty("rows", out var vRows)
+                && vRows.GetArrayLength() > 0
+                && vRows[0].GetArrayLength() > 0)
             {
-                if (verifyResult.TryGetProperty("response", out var vResp)
-                    && vResp.TryGetProperty("result", out var vResult)
-                    && vResult.TryGetProperty("rows", out var vRows)
-                    && vRows.GetArrayLength() > 0
-                    && vRows[0].GetArrayLength() > 0)
+                var countValue = vRows[0][0].TryGetProperty("value", out var valueElement) ? valueElement.GetString() : null;
+                var count = int.Parse(countValue ?? "0");
+                if (count == 0)
                 {
-                    var countValue = vRows[0][0].TryGetProperty("value", out var valueElement) ? valueElement.GetString() : null;
-                    var count = int.Parse(countValue ?? "0");
-                    if (count == 0)
-                    {
-                        var idParam = Parameters.Cast<HttpDbParameter>()
-                            .FirstOrDefault(p => p.ParameterName == "@p4");
-                        var errorMessage = idParam != null
-                            ? $"The record with ID '{idParam.Value}' was not found."
-                            : "The record was not found.";
-                        throw new DbUpdateConcurrencyException(errorMessage);
-                    }
+                    var idParam = Parameters.Cast<HttpDbParameter>()
+                        .FirstOrDefault(p => p.ParameterName == "@p4");
+                    var errorMessage = idParam != null
+                        ? $"The record with ID '{idParam.Value}' was not found."
+                        : "The record was not found.";
+                    throw new DbUpdateConcurrencyException(errorMessage);
                 }
             }
+        }
 
-            // Find changes() result
-            var changesResult = resultsArray.FirstOrDefault(
-                r => r.TryGetProperty("response", out var cResp)
-                    && cResp.TryGetProperty("result", out var cResult)
-                    && cResult.TryGetProperty("rows", out var cRows)
-                    && cRows.GetArrayLength() > 0
-                    && cRows[0].GetArrayLength() > 0
-                    && cResp.TryGetProperty("type", out var cType)
-                    && cType.GetString() == "execute"
-            );
+        var changesResult = resultsArray.FirstOrDefault(r => r.TryGetProperty("response", out var cResp)
+            && cResp.TryGetProperty("result", out var cResult)
+            && cResult.TryGetProperty("rows", out var cRows)
+            && cRows.GetArrayLength() > 0
+            && cRows[0].GetArrayLength() > 0
+            && cResp.TryGetProperty("type", out var cType)
+            && cType.GetString() == "execute"
+        );
 
-            if (changesResult.ValueKind != JsonValueKind.Undefined)
-            {
-                if (changesResult.TryGetProperty("response", out var cResp)
-                    && cResp.TryGetProperty("result", out var cResult)
-                    && cResult.TryGetProperty("rows", out var cRows)
-                    && cRows.GetArrayLength() > 0
-                    && cRows[0].GetArrayLength() > 0)
-                {
-                    var affectedValue = cRows[0][0].TryGetProperty("value", out var affectedElement) ? affectedElement.GetString() : null;
-                    rowsAffected = int.Parse(affectedValue ?? "0");
-                    if (rowsAffected == 0)
-                    {
-                        var idParam = Parameters.Cast<HttpDbParameter>()
-                            .FirstOrDefault(p => p.ParameterName == "@p4");
-                        var errorMessage = idParam != null
-                            ? $"The record with ID '{idParam.Value}' was modified or deleted by another process."
-                            : "The record was modified or deleted by another process.";
-                        throw new DbUpdateConcurrencyException(errorMessage);
-                    }
-                }
-            }
-
+        if (changesResult.ValueKind == JsonValueKind.Undefined)
+        {
             return rowsAffected;
         }
 
-        return null;
+        {
+            if (!changesResult.TryGetProperty("response", out var cResp)
+                || !cResp.TryGetProperty("result", out var cResult)
+                || !cResult.TryGetProperty("rows", out var cRows)
+                || cRows.GetArrayLength() <= 0
+                || cRows[0].GetArrayLength() <= 0)
+            {
+                return rowsAffected;
+            }
+
+            var affectedValue = cRows[0][0].TryGetProperty("value", out var affectedElement) ? affectedElement.GetString() : null;
+            rowsAffected = int.Parse(affectedValue ?? "0");
+            if (rowsAffected == 0)
+            {
+                var idParam = Parameters.Cast<HttpDbParameter>()
+                    .FirstOrDefault(p => p.ParameterName == "@p4");
+                var errorMessage = idParam != null
+                    ? $"The record with ID '{idParam.Value}' was modified or deleted by another process."
+                    : "The record was modified or deleted by another process.";
+                throw new DbUpdateConcurrencyException(errorMessage);
+            }
+        }
+
+        return rowsAffected;
     }
 
     /// <summary>
@@ -328,160 +330,197 @@ public class HttpDbCommand : DbCommand
     /// <returns>A DbDataReader representing the result set.</returns>
     private async Task<DbDataReader> ParseResponseToDataReader(HttpResponseMessage response)
     {
-        response.EnsureSuccessStatusCode();
-        var content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
-        using var document = JsonDocument.Parse(content);
-        var root = document.RootElement;
-
-        var dataTable = new DataTable();
-        var usedColumnNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-        if (!root.TryGetProperty("results", out var resultsElement) || !resultsElement.EnumerateArray().Any())
+        try
         {
-            dataTable.Columns.Add("Value", typeof(long));
-            var row = dataTable.NewRow();
-            row[0] = 0L;
-            dataTable.Rows.Add(row);
-            return new LibSqlDataReader(dataTable);
-        }
+            response.EnsureSuccessStatusCode();
+            var content = await response.Content.ReadAsStringAsync().ConfigureAwait(false);
+            using var document = JsonDocument.Parse(content);
+            var root = document.RootElement;
 
-        foreach (var result in resultsElement.EnumerateArray())
-        {
-            if (result.TryGetProperty("response", out var responseElement)
-                && responseElement.TryGetProperty("type", out var typeElement)
-                && typeElement.GetString() == "execute"
-                && responseElement.TryGetProperty("result", out var resultData))
+            var dataTable = new DataTable();
+            var usedColumnNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            if (!root.TryGetProperty("results", out var resultsElement) || !resultsElement.EnumerateArray().Any())
             {
-                if (resultData.TryGetProperty("rows", out var rowsElement) && resultData.TryGetProperty("cols", out var colsElement))
+                dataTable.Columns.Add("Value", typeof(long));
+                var row = dataTable.NewRow();
+                row[0] = 0L;
+                dataTable.Rows.Add(row);
+                return new LibSqlDataReader(dataTable);
+            }
+
+            foreach (var result in resultsElement.EnumerateArray())
+            {
+                if (result.TryGetProperty("response", out var responseElement)
+                    && responseElement.TryGetProperty("type", out var typeElement)
+                    && typeElement.GetString() == "execute"
+                    && responseElement.TryGetProperty("result", out var resultData))
                 {
-                    var rows = rowsElement.EnumerateArray();
-                    var cols = colsElement.EnumerateArray();
-
-                    // First pass: Get column names and determine types
-                    foreach (var col in cols.AsEnumerable())
+                    if (resultData.TryGetProperty("rows", out var rowsElement) && resultData.TryGetProperty("cols", out var colsElement))
                     {
-                        if (col.TryGetProperty("name", out var nameElement) && col.TryGetProperty("decltype", out var typeElement1))
+                        var rows = rowsElement.EnumerateArray();
+                        var cols = colsElement.EnumerateArray();
+
+                        foreach (var col in cols.AsEnumerable())
                         {
-                            var baseColumnName = nameElement.GetString() ?? $"Column{dataTable.Columns.Count}";
-                            var columnName = baseColumnName;
-                            var suffix = 1;
-                            // Handle duplicate column names
-                            while (usedColumnNames.Contains(columnName))
+                            if (col.TryGetProperty("name", out var nameElement) && col.TryGetProperty("decltype", out var typeElement1))
                             {
-                                columnName = $"{baseColumnName}_{suffix}";
-                                suffix++;
-                            }
-
-                            usedColumnNames.Add(columnName);
-                            var sqliteType = typeElement1.GetString();
-                            var columnType = sqliteType switch
-                            {
-                                "INTEGER" => typeof(long),
-                                "REAL" => typeof(double),
-                                "TEXT" => typeof(string),
-                                "BLOB" => typeof(byte[]),
-                                _ => typeof(string)
-                            };
-                            dataTable.Columns.Add(columnName, columnType);
-                        }
-                    }
-
-                    foreach (var row in rows)
-                    {
-                        var dataRow = dataTable.NewRow();
-                        var columnIndex = 0;
-                        foreach (var col in row.EnumerateArray().TakeWhile(col => columnIndex < dataTable.Columns.Count))
-                        {
-                            if (col.ValueKind == JsonValueKind.Object
-                                && col.TryGetProperty("type", out var typeElement2)
-                                && col.TryGetProperty("value", out var valueElement))
-                            {
-                                var type = typeElement2.GetString()?.ToLowerInvariant();
-                                object? value = null;
-
-                                switch (type)
+                                var baseColumnName = nameElement.GetString() ?? $"Column{dataTable.Columns.Count}";
+                                var columnName = baseColumnName;
+                                var suffix = 1;
+                                while (usedColumnNames.Contains(columnName))
                                 {
-                                    case "text":
-                                    case "blob":
-                                    case null:
-                                        value = valueElement.GetString();
-                                        break;
-                                    case "integer" when valueElement.ValueKind == JsonValueKind.String:
-                                        long.TryParse(valueElement.GetString(), out var longValue);
-                                        value = longValue;
-                                        break;
-                                    case "integer":
-                                        value = valueElement.GetInt64();
-                                        break;
-                                    case "float":
-                                    {
-                                        value = valueElement.ValueKind == JsonValueKind.String
-                                            ? double.Parse(valueElement.GetString()!, CultureInfo.InvariantCulture)
-                                            : valueElement.GetDouble();
-                                        break;
-                                    }
+                                    columnName = $"{baseColumnName}_{suffix}";
+                                    suffix++;
                                 }
 
-                                try
+                                usedColumnNames.Add(columnName);
+                                var sqliteType = typeElement1.GetString();
+                                var columnType = sqliteType switch
                                 {
-                                    if (dataTable.Columns[columnIndex].DataType == typeof(long))
+                                    "INTEGER" => typeof(long),
+                                    "REAL" => typeof(double),
+                                    "TEXT" => typeof(string),
+                                    "BLOB" => typeof(byte[]),
+                                    _ => typeof(string)
+                                };
+                                dataTable.Columns.Add(columnName, columnType);
+                            }
+                        }
+
+                        foreach (var row in rows)
+                        {
+                            var dataRow = dataTable.NewRow();
+                            var columnIndex = 0;
+                            foreach (var col in row.EnumerateArray().TakeWhile(col => columnIndex < dataTable.Columns.Count))
+                            {
+                                if (col.ValueKind == JsonValueKind.Object
+                                    && col.TryGetProperty("type", out var typeElement2)
+                                    && col.TryGetProperty("value", out var valueElement))
+                                {
+                                    var type = typeElement2.GetString()?.ToLowerInvariant();
+                                    object? value = null;
+
+                                    switch (type)
                                     {
-                                        var parsedLong = value != null
-                                            && long.TryParse(
-                                                value.ToString(), NumberStyles.Any, CultureInfo.InvariantCulture, out var intResult)
-                                                ? intResult
-                                                : (object)DBNull.Value;
-                                        dataRow[columnIndex] = parsedLong;
-                                    }
-                                    else if (dataTable.Columns[columnIndex].DataType == typeof(DateTimeOffset))
-                                    {
-                                        if (value != null
-                                            && DateTimeOffset.TryParse(
-                                                value.ToString(), CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal,
-                                                out var dateTimeOffset))
+                                        case "text":
+                                        case "blob":
+                                        case null:
+                                            value = valueElement.GetString();
+                                            break;
+                                        case "integer" when valueElement.ValueKind == JsonValueKind.String:
+                                            long.TryParse(valueElement.GetString(), out var longValue);
+                                            value = longValue;
+                                            break;
+                                        case "integer":
+                                            value = valueElement.GetInt64();
+                                            break;
+                                        case "float":
                                         {
-                                            dataRow[columnIndex] = dateTimeOffset;
+                                            value = valueElement.ValueKind == JsonValueKind.String
+                                                ? double.Parse(valueElement.GetString()!, CultureInfo.InvariantCulture)
+                                                : valueElement.GetDouble();
+                                            break;
+                                        }
+                                    }
+
+                                    try
+                                    {
+                                        if (dataTable.Columns[columnIndex].DataType == typeof(long))
+                                        {
+                                            var parsedLong = value != null
+                                                && long.TryParse(
+                                                    value.ToString(), NumberStyles.Any, CultureInfo.InvariantCulture, out var intResult)
+                                                    ? intResult
+                                                    : (object)DBNull.Value;
+                                            dataRow[columnIndex] = parsedLong;
+                                        }
+                                        else if (dataTable.Columns[columnIndex].DataType == typeof(DateTimeOffset))
+                                        {
+                                            if (value != null
+                                                && DateTimeOffset.TryParse(
+                                                    value.ToString(), CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal,
+                                                    out var dateTimeOffset))
+                                            {
+                                                dataRow[columnIndex] = dateTimeOffset;
+                                            }
+                                            else
+                                            {
+                                                dataRow[columnIndex] = DBNull.Value;
+                                            }
+
+                                            continue;
                                         }
                                         else
                                         {
-                                            dataRow[columnIndex] = DBNull.Value;
+                                            dataRow[columnIndex] = ParseColumnValue(type, value?.ToString());
                                         }
-
-                                        continue;
                                     }
-                                    else
+                                    catch (Exception ex)
                                     {
-                                        dataRow[columnIndex] = ParseColumnValue(type, value?.ToString());
+                                        dataRow[columnIndex] = DBNull.Value;
+                                        throw new LibSqlHttpException(
+                                            $"Error parsing column value at index {columnIndex}",
+                                            CommandText,
+                                            null,
+                                            ex.Message,
+                                            null,
+                                            ex);
                                     }
                                 }
-                                catch (Exception ex)
+                                else
                                 {
                                     dataRow[columnIndex] = DBNull.Value;
-                                    throw new Exception(ex.Message);
                                 }
-                            }
-                            else
-                            {
-                                dataRow[columnIndex] = DBNull.Value;
+
+                                columnIndex++;
                             }
 
-                            columnIndex++;
+                            dataTable.Rows.Add(dataRow);
                         }
-
-                        dataTable.Rows.Add(dataRow);
+                    }
+                    else if (resultData.ValueKind != JsonValueKind.Undefined)
+                    {
+                        dataTable.Columns.Add("Value", typeof(string));
+                        var row = dataTable.NewRow();
+                        row[0] = GetValue(resultData);
+                        dataTable.Rows.Add(row);
                     }
                 }
-                else if (resultData.ValueKind != JsonValueKind.Undefined)
-                {
-                    dataTable.Columns.Add("Value", typeof(string)); // Changed to string
-                    var row = dataTable.NewRow();
-                    row[0] = GetValue(resultData);
-                    dataTable.Rows.Add(row);
-                }
             }
-        }
 
-        return new LibSqlDataReader(dataTable);
+            return new LibSqlDataReader(dataTable);
+        }
+        catch (HttpRequestException ex)
+        {
+            throw new LibSqlHttpException(
+                "HTTP request failed while reading data",
+                CommandText,
+                response.StatusCode,
+                await response.Content.ReadAsStringAsync().ConfigureAwait(false),
+                null,
+                ex);
+        }
+        catch (JsonException ex)
+        {
+            throw new LibSqlHttpException(
+                "Failed to parse JSON response while reading data",
+                CommandText,
+                response.StatusCode,
+                await response.Content.ReadAsStringAsync().ConfigureAwait(false),
+                null,
+                ex);
+        }
+        catch (Exception ex) when (!(ex is LibSqlHttpException))
+        {
+            throw new LibSqlHttpException(
+                "An unexpected error occurred while reading data",
+                CommandText,
+                response.StatusCode,
+                await response.Content.ReadAsStringAsync().ConfigureAwait(false),
+                null,
+                ex);
+        }
     }
 
     private object? ParseColumnValue(string? type, string? value)
@@ -508,6 +547,7 @@ public class HttpDbCommand : DbCommand
                     {
                         return guidResult;
                     }
+
                     return value;
                 case "blob":
                     return Convert.FromBase64String(value);
@@ -515,9 +555,15 @@ public class HttpDbCommand : DbCommand
                     return value;
             }
         }
-        catch
+        catch (Exception ex)
         {
-            return DBNull.Value;
+            throw new LibSqlHttpException(
+                "Error parsing JSON element value",
+                CommandText,
+                null,
+                "Failed to parse JSON element",
+                null,
+                ex);
         }
     }
 
@@ -555,9 +601,15 @@ public class HttpDbCommand : DbCommand
                     _ => value
                 };
             }
-            catch
+            catch (Exception ex)
             {
-                return DBNull.Value;
+                throw new LibSqlHttpException(
+                    $"Error parsing value of type '{type}'",
+                    CommandText,
+                    null,
+                    $"Failed to parse value: {value}",
+                    null,
+                    ex);
             }
         }
 
@@ -573,57 +625,136 @@ public class HttpDbCommand : DbCommand
                 _ => element.GetRawText()
             };
         }
-        catch
+        catch (Exception ex)
         {
-            return DBNull.Value;
+            throw new LibSqlHttpException(
+                "Error parsing JSON element value",
+                CommandText,
+                null,
+                "Failed to parse JSON element",
+                null,
+                ex);
         }
     }
 
     private IEnumerable<string> SplitSqlStatements(string sql)
     {
-        var statements = new List<string>();
-        var currentStatement = new StringBuilder();
-        var inString = false;
-        var stringChar = '\0';
-
-        for (int i = 0; i < sql.Length; i++)
+        try
         {
-            var c = sql[i];
+            var statements = new List<string>();
+            var currentStatement = new StringBuilder();
+            var inString = false;
+            var stringChar = '\0';
 
-            if (c == '\'' || c == '"')
+            for (int i = 0; i < sql.Length; i++)
             {
-                if (!inString)
+                var c = sql[i];
+
+                if (c == '\'' || c == '"')
                 {
-                    inString = true;
-                    stringChar = c;
+                    if (!inString)
+                    {
+                        inString = true;
+                        stringChar = c;
+                    }
+                    else if (c == stringChar)
+                    {
+                        inString = false;
+                    }
                 }
-                else if (c == stringChar)
+
+                currentStatement.Append(c);
+
+                if (c == ';' && !inString)
                 {
-                    inString = false;
+                    var stmt = currentStatement.ToString().Trim();
+                    if (!string.IsNullOrWhiteSpace(stmt))
+                    {
+                        statements.Add(stmt);
+                    }
+
+                    currentStatement.Clear();
                 }
             }
 
-            currentStatement.Append(c);
-
-            if (c == ';' && !inString)
+            var lastStmt = currentStatement.ToString().Trim();
+            if (!string.IsNullOrWhiteSpace(lastStmt))
             {
-                var stmt = currentStatement.ToString().Trim();
-                if (!string.IsNullOrWhiteSpace(stmt))
-                {
-                    statements.Add(stmt);
-                }
-
-                currentStatement.Clear();
+                statements.Add(lastStmt);
             }
-        }
 
-        var lastStmt = currentStatement.ToString().Trim();
-        if (!string.IsNullOrWhiteSpace(lastStmt))
+            return statements;
+        }
+        catch (Exception ex)
         {
-            statements.Add(lastStmt);
+            throw new LibSqlHttpException(
+                "Error splitting SQL statements",
+                sql,
+                null,
+                "Failed to parse SQL into separate statements",
+                null,
+                ex);
+        }
+    }
+
+    /// <summary>
+    /// Custom exception class for LibSQL HTTP database operations.
+    /// </summary>
+    public class LibSqlHttpException : Exception
+    {
+        /// <summary>
+        /// Gets the SQL command that caused the exception.
+        /// </summary>
+        public string? SqlCommand { get; }
+
+        /// <summary>
+        /// Gets the HTTP status code if applicable.
+        /// </summary>
+        public System.Net.HttpStatusCode? StatusCode { get; }
+
+        /// <summary>
+        /// Gets the raw response content from the server.
+        /// </summary>
+        public string? ResponseContent { get; }
+
+        /// <summary>
+        /// Gets the request body that was sent to the server.
+        /// </summary>
+        public string? RequestBody { get; }
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="LibSqlHttpException"/> class.
+        /// </summary>
+        public LibSqlHttpException(string message)
+            : base(message)
+        {
         }
 
-        return statements;
+        /// <summary>
+        /// Initializes a new instance of the <see cref="LibSqlHttpException"/> class with a specified error message and inner exception.
+        /// </summary>
+        public LibSqlHttpException(string message, Exception innerException)
+            : base(message, innerException)
+        {
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="LibSqlHttpException"/> class with detailed information about the failed operation.
+        /// </summary>
+        public LibSqlHttpException(
+            string message,
+            string? sqlCommand,
+            System.Net.HttpStatusCode? statusCode,
+            string? responseContent,
+            string? requestBody,
+            Exception? innerException = null)
+            : base(message, innerException)
+        {
+            SqlCommand = sqlCommand;
+            StatusCode = statusCode;
+            ResponseContent = responseContent;
+            RequestBody = requestBody;
+        }
     }
 
     private async Task<HttpResponseMessage> ExecuteHttpRequestAsync(
@@ -647,12 +778,15 @@ public class HttpDbCommand : DbCommand
             throw new InvalidOperationException("Connection is not open.");
         }
 
+        Dictionary<string, object> requestBody;
+        StringContent requestContent;
 
-        var requestBody = new Dictionary<string, object>
+        try
         {
+            requestBody = new Dictionary<string, object>
             {
-                "requests", statements.Select(
-                    sql =>
+                {
+                    "requests", statements.Select(sql =>
                     {
                         // 1. Extract unique parameters and maintain order:
                         var uniqueParameterNames = new List<string>();
@@ -684,54 +818,95 @@ public class HttpDbCommand : DbCommand
                         var parameterizedSql = parameterizedSqlBuilder.ToString();
 
                         // 3. Pass Only Unique Parameters:
-                        var args = uniqueParameterNames.Select(
-                            paramName =>
+                        var args = uniqueParameterNames.Select(paramName =>
+                        {
+                            var parameter = Parameters.Cast<HttpDbParameter>().FirstOrDefault(p => p.ParameterName == paramName);
+                            if (parameter == null)
                             {
-                                var parameter = Parameters.Cast<HttpDbParameter>().FirstOrDefault(p => p.ParameterName == paramName);
-                                if (parameter == null)
-                                {
-                                    throw new Exception($"parameter {paramName} not found in parameters collection");
-                                }
+                                throw new LibSqlHttpException($"Parameter {paramName} not found in parameters collection");
+                            }
 
-                                return ConvertParameterValue(parameter);
-                            }).ToList();
+                            return ConvertParameterValue(parameter);
+                        }).ToList();
 
                         var request = new { type = "execute", stmt = new { sql = parameterizedSql, args = args.ToArray() } };
 
                         return request;
                     }).Concat<object>(closeConnection ? new[] { new { type = "close" } } : Array.Empty<object>()).ToArray()
-            }
-        };
+                }
+            };
 
-        // Serialize the request body
-        var requestContent = new StringContent(
-            JsonSerializer.Serialize(requestBody),
-            Encoding.UTF8,
-            "application/json");
+            // Serialize the request body
+            requestContent = new StringContent(
+                JsonSerializer.Serialize(requestBody),
+                Encoding.UTF8,
+                "application/json");
+        }
+        catch (Exception ex)
+        {
+            throw new LibSqlHttpException(
+                "Failed to prepare SQL request",
+                CommandText,
+                null,
+                null,
+                null,
+                ex);
+        }
 
         try
         {
             var response = await httpClient.PostAsync("", requestContent, cancellationToken).ConfigureAwait(false);
-
             var responseContent = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
 
             if (!response.IsSuccessStatusCode)
             {
-                throw new HttpRequestException(
-                    $"HTTP request failed with status code {response.StatusCode}: response content: {responseContent} for {JsonSerializer.Serialize(requestContent)}, and command {CommandText} and request body {JsonSerializer.Serialize(requestBody)}");
+                var requestBodyJson = JsonSerializer.Serialize(requestBody);
+                throw new LibSqlHttpException(
+                    $"HTTP request failed with status code {response.StatusCode}",
+                    CommandText,
+                    response.StatusCode,
+                    responseContent,
+                    requestBodyJson);
             }
 
             if (responseContent.Contains("\"type\":\"error\""))
             {
-                throw new HttpRequestException(
-                    $"Error in SQL execution: {responseContent}\n{CommandText}\n{JsonSerializer.Serialize(requestBody)}");
+                var requestBodyJson = JsonSerializer.Serialize(requestBody);
+                throw new LibSqlHttpException(
+                    "Error in SQL execution",
+                    CommandText,
+                    response.StatusCode,
+                    responseContent,
+                    requestBodyJson);
             }
 
             return response;
         }
         catch (HttpRequestException ex)
         {
-            throw ex;
+            var requestBodyJson = JsonSerializer.Serialize(requestBody);
+            throw new LibSqlHttpException(
+                "HTTP request failed",
+                CommandText,
+                null,
+                ex.Message,
+                requestBodyJson,
+                ex);
+        }
+        catch (TaskCanceledException ex) when (cancellationToken.IsCancellationRequested)
+        {
+            throw new OperationCanceledException("The database operation was canceled.", ex, cancellationToken);
+        }
+        catch (Exception ex) when (!(ex is LibSqlHttpException))
+        {
+            var requestBodyJson = JsonSerializer.Serialize(requestBody);
+            throw new LibSqlHttpException(
+                "An unexpected error occurred during database operation",
+                CommandText,
+                null,
+                ex.Message,
+                requestBodyJson,
+                ex);
         }
     }
 
@@ -749,48 +924,107 @@ public class HttpDbCommand : DbCommand
         }
 
         var client = ((HttpDbConnection)Connection!).GetClient();
+        if (client == null)
+        {
+            throw new InvalidOperationException("Connection is not open.");
+        }
 
         var totalRowsAffected = 0;
         foreach (var sql in statements)
         {
-            var sqlOperation = GetSqlOperationType(sql);
-            var parameters = Parameters.Cast<HttpDbParameter>()
-                .Where(p => sql.Contains(p.ParameterName))
-                .OrderBy(p => p.ParameterName)
-                .Select(ConvertParameterValue)
-                .ToArray();
-
-            var requests = BuildRequestBatch(sqlOperation, sql, parameters);
-
-            var request = new Dictionary<string, object> { { "requests", requests.ToArray() } };
-            var requestContent = new StringContent(
-                JsonSerializer.Serialize(request),
-                Encoding.UTF8,
-                "application/json");
-
-            var response = await client.PostAsync("", requestContent, cancellationToken).ConfigureAwait(false);
-            var responseJson = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
-
-            using var responseDoc = JsonDocument.Parse(responseJson);
-            var responseRoot = responseDoc.RootElement;
-            if (responseRoot.TryGetProperty("error", out var errorElement))
+            try
             {
-                throw new HttpRequestException(
-                    $"Error in SQL execution: {errorElement.GetString()}\n{sql},{CommandText}\n request:{JsonSerializer.Serialize(request)}");
+                var sqlOperation = GetSqlOperationType(sql);
+                var parameters = Parameters.Cast<HttpDbParameter>()
+                    .Where(p => sql.Contains(p.ParameterName))
+                    .OrderBy(p => p.ParameterName)
+                    .Select(ConvertParameterValue)
+                    .ToArray();
+
+                var requests = BuildRequestBatch(sqlOperation, sql, parameters);
+
+                var request = new Dictionary<string, object> { { "requests", requests.ToArray() } };
+                var requestContent = new StringContent(
+                    JsonSerializer.Serialize(request),
+                    Encoding.UTF8,
+                    "application/json");
+
+                var response = await client.PostAsync("", requestContent, cancellationToken).ConfigureAwait(false);
+                var responseJson = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+
+                using var responseDoc = JsonDocument.Parse(responseJson);
+                var responseRoot = responseDoc.RootElement;
+                if (responseRoot.TryGetProperty("error", out var errorElement))
+                {
+                    var requestBodyJson = JsonSerializer.Serialize(request);
+                    throw new LibSqlHttpException(
+                        $"Error in SQL execution: {errorElement.GetString()}",
+                        sql,
+                        response.StatusCode,
+                        responseJson,
+                        requestBodyJson);
+                }
+
+                if (!responseRoot.TryGetProperty("results", out var resultsElement))
+                {
+                    var requestBodyJson = JsonSerializer.Serialize(request);
+                    throw new LibSqlHttpException(
+                        "Invalid response format: missing 'results' property",
+                        sql,
+                        response.StatusCode,
+                        responseJson,
+                        requestBodyJson);
+                }
+
+                totalRowsAffected += resultsElement.ValueKind switch
+                {
+                    JsonValueKind.Array => ProcessResults(sqlOperation, resultsElement, parameters),
+                    JsonValueKind.Object => ProcessResults(
+                        sqlOperation, JsonDocument.Parse(resultsElement.GetRawText()).RootElement, parameters),
+                    _ => throw new LibSqlHttpException(
+                        "Unexpected format for 'results' property, neither array nor object",
+                        sql,
+                        response.StatusCode,
+                        responseJson,
+                        JsonSerializer.Serialize(request))
+                };
             }
-
-            if (!responseRoot.TryGetProperty("results", out var resultsElement))
+            catch (HttpRequestException ex)
             {
-                throw new InvalidOperationException("Invalid response format: missing 'results' property");
+                throw new LibSqlHttpException(
+                    "HTTP request failed during command execution",
+                    sql,
+                    null,
+                    ex.Message,
+                    null,
+                    ex);
             }
-
-            totalRowsAffected += resultsElement.ValueKind switch
+            catch (JsonException ex)
             {
-                JsonValueKind.Array => ProcessResults(sqlOperation, resultsElement, parameters),
-                JsonValueKind.Object => ProcessResults(
-                    sqlOperation, JsonDocument.Parse(resultsElement.GetRawText()).RootElement, parameters),
-                _ => throw new InvalidOperationException("Unexpected format for 'results' property, neither array nor object")
-            };
+                throw new LibSqlHttpException(
+                    "Failed to parse JSON response",
+                    sql,
+                    null,
+                    ex.Message,
+                    null,
+                    ex);
+            }
+            catch (TaskCanceledException ex) when (cancellationToken.IsCancellationRequested)
+            {
+                throw new OperationCanceledException("The database operation was canceled.", ex, cancellationToken);
+            }
+            catch (Exception ex) when (!(ex is LibSqlHttpException
+                                           || ex is DbUpdateConcurrencyException
+                                           || ex is OperationCanceledException))
+            {
+                throw new LibSqlHttpException(
+                    "An unexpected error occurred during command execution",
+                    sql,
+                    null,
+                    ex.Message,
+                    null,
+                    ex);
+            }
         }
 
         return totalRowsAffected;
@@ -891,12 +1125,16 @@ public class HttpDbCommand : DbCommand
             requests.Add(new ExecuteRequest("SELECT changes();", Array.Empty<LibSqlParameter>()));
         }
 
-        if (operation == "UPDATE" && !string.IsNullOrEmpty(tableName) && idParam != null && idParamName is not null && idParam.value is not null)
+        if (operation == "UPDATE"
+            && !string.IsNullOrEmpty(tableName)
+            && idParam != null
+            && idParamName is not null
+            && idParam.value is not null)
         {
             requests.Add(
                 new ExecuteRequest(
                     $"SELECT * FROM \"{tableName}\" WHERE \"Id\" = {idParamName};",
-                    new[] { new LibSqlParameter(idParamName, idParam.value ,"text") }
+                    new[] { new LibSqlParameter(idParamName, idParam.value, "text") }
                 ));
         }
 
@@ -1013,10 +1251,9 @@ public class HttpDbCommand : DbCommand
 
     private static int ProcessGenericOperation(List<JsonElement> results)
     {
-        var executeResult = results.FirstOrDefault(
-            r => r.TryGetProperty("response", out var resp)
-                && resp.TryGetProperty("type", out var type)
-                && type.GetString() == "execute");
+        var executeResult = results.FirstOrDefault(r => r.TryGetProperty("response", out var resp)
+            && resp.TryGetProperty("type", out var type)
+            && type.GetString() == "execute");
         if (executeResult.ValueKind == JsonValueKind.Undefined)
         {
             return 0;
@@ -1051,7 +1288,6 @@ public class HttpDbCommand : DbCommand
     {
         public LibSqlParameter()
         {
-
         }
 
         public LibSqlParameter(string parameterName, object parameterValue, string parameterType = "text")
@@ -1060,6 +1296,7 @@ public class HttpDbCommand : DbCommand
             value = parameterValue;
             type = parameterType;
         }
+
         public string name { get; set; } = "";
         public string type { get; set; } = "";
         public object? value { get; set; }

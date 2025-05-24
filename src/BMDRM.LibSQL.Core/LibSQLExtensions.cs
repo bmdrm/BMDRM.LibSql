@@ -33,7 +33,6 @@ public static class LibSqlExtensions
         this DbContextOptionsBuilder optionsBuilder,
         Action<LibSqlDbContextOptionsBuilder>? libSqlOptionsAction = null)
     {
-        Console.WriteLine(@"Configuring DbContext to use LibSQL with no initial connection or connection string.");
 
         ((IDbContextOptionsBuilderInfrastructure)optionsBuilder).AddOrUpdateExtension(GetOrCreateExtension(optionsBuilder));
 
@@ -56,7 +55,6 @@ public static class LibSqlExtensions
         string connectionString,
         Action<LibSqlDbContextOptionsBuilder>? libSqlOptionsAction = null)
     {
-        Console.WriteLine($"Configuring DbContext to use LibSQL with connection string: {connectionString}");
 
         var extension = (LibSqlOptionsExtension)GetOrCreateExtension(optionsBuilder, connectionString).WithConnectionString(connectionString);
         ((IDbContextOptionsBuilderInfrastructure)optionsBuilder).AddOrUpdateExtension(extension);
@@ -80,7 +78,6 @@ public static class LibSqlExtensions
         HttpDbConnection connection,
         Action<LibSqlDbContextOptionsBuilder>? libSqlOptionsAction = null)
     {
-        Console.WriteLine("Configuring DbContext to use LibSQL with an existing DbConnection.");
         var extension = (LibSqlOptionsExtension)GetOrCreateExtension(optionsBuilder).WithConnectionString(connection.ConnectionString);
 
         ((IDbContextOptionsBuilderInfrastructure)optionsBuilder).AddOrUpdateExtension(extension);
@@ -100,7 +97,6 @@ public static class LibSqlExtensions
     /// <returns>The LibSQL options extension.</returns>
     private static LibSqlOptionsExtension GetOrCreateExtension(DbContextOptionsBuilder optionsBuilder, string? connectionString = null)
     {
-        Console.WriteLine($"Getting or creating extension for LibSQL with connection string: {connectionString}");
 
         var extension = optionsBuilder.Options.FindExtension<LibSqlOptionsExtension>();
         if (extension == null && !string.IsNullOrEmpty(connectionString))
@@ -117,9 +113,6 @@ public static class LibSqlExtensions
     /// <param name="optionsBuilder">The options builder being configured.</param>
     private static void ConfigureWarnings(DbContextOptionsBuilder optionsBuilder)
     {
-        // Example: Configuring warnings can be added here if necessary
-        Console.WriteLine("Configuring warnings for DbContext.");
-
         optionsBuilder.ConfigureWarnings(warnings => warnings.Throw(RelationalEventId.QueryPossibleUnintendedUseOfEqualsWarning));
     }
 }
