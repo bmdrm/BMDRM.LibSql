@@ -9,15 +9,10 @@ using System.Text.Json;
 
 namespace Microsoft.EntityFrameworkCore.Storage;
 
-public class HttpDbCommandDataTypeTests : IClassFixture<HttpDbFixture>
+public class HttpDbCommandDataTypeTests(HttpDbFixture fixture) : IClassFixture<HttpDbFixture>
 {
     private readonly string _testConnectionString = LibSqlTestSettings.ConnectionString;
-    private readonly IHttpClientFactory _httpClientFactory;
-
-    public HttpDbCommandDataTypeTests(HttpDbFixture fixture)
-    {
-        this._httpClientFactory = fixture.HttpClientFactory;
-    }
+    private readonly IHttpClientFactory _httpClientFactory = fixture.HttpClientFactory;
 
     [Fact]
     public async Task IntegerFields_ShouldBeHandledCorrectly()
@@ -746,14 +741,12 @@ public class HttpDbCommandDataTypeTests : IClassFixture<HttpDbFixture>
         var recordId = dataReader.GetInt32(0);
         var savedGuidValue = dataReader.GetString(1);
 
-        // Assert: GUID string should preserve original casing
         Assert.Equal(guidValue, savedGuidValue);
 
 
         await dataReader.CloseAsync();
         command.Parameters.Clear();
 
-        // Cleanup
         command.CommandText = "DROP TABLE TestGuids";
         await command.ExecuteNonQueryAsync();
         connection.Close();
