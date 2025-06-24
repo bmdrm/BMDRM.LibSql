@@ -1,15 +1,11 @@
-Here’s a cleaned-up, professional version of your `README.md` that maintains all technical information while removing the dramatic tone:
-
 ---
 
 # BMDRM.LibSQL.Core
 
-**EF Core Provider for LibSQL — Maintained by BMDRM**
 
 [![Build Status](https://img.shields.io/azure-devops/build/dnceng-public/public/17/main)](https://dev.azure.com/dnceng-public/public/_build?definitionId=17)
 [![NuGet](https://img.shields.io/nuget/v/BMDRM.LibSql.Core?label=BMDRM.LibSql.Core)](https://www.nuget.org/packages/BMDRM.LibSql.Core)
 
-BMDRM.LibSQL.Core is an Entity Framework Core provider for [LibSQL](https://libsql.org/), developed and maintained by BMDRM. It is designed for performance, reliability, and production-grade compatibility with EF Core 8.0.
 
 > Licensed under the [MIT License](LICENSE.txt).
 
@@ -89,8 +85,7 @@ var users = await db.Users
 ## Support
 
 * [GitHub Issues](https://github.com/bmdrm/efcore-libsql-core/issues)
-* Email: [support@bmdrm.dev](mailto:support@bmdrm.dev)
-* Status: [status.bmdrm.dev](https://status.bmdrm.dev)
+* Email: [support@bmdrm.dev](mailto:contact@bmdrm.dev)
 
 ---
 
@@ -106,14 +101,3 @@ git clone https://github.com/bmdrm/BMDRM.LibSql.git
 ./build.sh --use-hardened
 ```
 
----
-
-## Resources
-
-* [Documentation](https://libsql.bmdrm.dev)
-* [Community Forum](https://forum.bmdrm.dev)
-* [Service Status](https://status.bmdrm.dev)
-
----
-
-If you'd like, I can also provide a markdown file with this cleaned-up content, or tailor the tone further for enterprise clients or developers.
