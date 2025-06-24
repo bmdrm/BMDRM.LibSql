@@ -6,15 +6,15 @@
     <Description>LibSql database provider for Entity Framework Core. This
       package does not include a copy of the native LibSql library.</Description>
     <TargetFramework>$(DefaultNetCoreTargetFramework)</TargetFramework>
-    <AssemblyVersion>9.0.1.0</AssemblyVersion>
-    <FileVersion>9.0.1.0</FileVersion>
-    <Version>9.0.1.0</Version>
+    <AssemblyVersion>9.0.10.0</AssemblyVersion>
+    <FileVersion>9.0.10.0</FileVersion>
+    <Version>9.0.10.0</Version>
     <Nullable>enable</Nullable>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <ImplicitUsings>true</ImplicitUsings>
     <PackageTags>$(PackageTags);LibSql</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <PackageVersion>9.0.1</PackageVersion>
+    <PackageVersion>9.0.10</PackageVersion>
   </PropertyGroup>
   <ItemGroup>
     <Using Include="System.Data.Common" />

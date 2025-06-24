@@ -37,13 +37,13 @@
 ### 1. Install Packages
 
 ```bash
-dotnet add package BMDRM.LibSql.Core --version 9.0.0
-dotnet add package Microsoft.EntityFrameworkCore --version 9.0.7
-dotnet add package Microsoft.EntityFrameworkCore.Relational --version 9.0.7
-dotnet add package Microsoft.EntityFrameworkCore.Design --version 9.0.7
+dotnet add package BMDRM.LibSql.Core --version 9.0.10
+dotnet add package Microsoft.EntityFrameworkCore --version 9.0.6
+dotnet add package Microsoft.EntityFrameworkCore.Relational --version 9.0.6
+dotnet add package Microsoft.EntityFrameworkCore.Design --version 9.0.6
 ```
 
-> **Note:** Use version `9.0.7` for EF Core packages to ensure compatibility. Support for EF Core 9 will be added in a future release.
+> **Note:** Use version `9.0.6` for EF Core packages to ensure compatibility. Support for EF Core 9 will be added in a future release.
 
 ### 2. Configure Your Context
 
@@ -98,6 +98,5 @@ var users = await db.Users
 
 ```bash
 git clone https://github.com/bmdrm/BMDRM.LibSql.git
-./build.sh --use-hardened
 ```
 

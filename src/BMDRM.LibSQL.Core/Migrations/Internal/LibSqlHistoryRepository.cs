@@ -45,7 +45,7 @@ public class LibSqlHistoryRepository : HistoryRepository
         var stringTypeMapping = Dependencies.TypeMappingSource.GetMapping(typeof(string));
 
         return $"""
-SELECT COUNT(*) FROM "LibSql_master" WHERE "name" = {stringTypeMapping.GenerateSqlLiteral(tableName)} AND "type" = 'table';
+SELECT COUNT(*) FROM "sqlite_master" WHERE "name" = {stringTypeMapping.GenerateSqlLiteral(tableName)} AND "type" = 'table';
 """;
     }
 
