@@ -2,7 +2,7 @@
 <RunSettings>
   <RunConfiguration>
     <EnvironmentVariables>
-      <LIBSQL_TEST_CONNECTION>https://testdatabase-monembjd.aws-eu-west-1.turso.io/v2/pipeline;eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJleHAiOjE3NTEzNzQ5OTMsImlhdCI6MTc1MDc3MDE5MywiaWQiOiIxMDY4MzI1Zi0wNzcwLTQwZDQtODczOC00NzUwNTE0ZjkwYWEiLCJyaWQiOiI5MTQxNzlmNS02NTQwLTRhNTctOWVkMi04OTBmMDI0MmU3NGUifQ.8pysD4IVrpcfvLH9T4Gq5SPkcfVAYaR0v_CBM87k7ji86uC3AlbAFf_TvW5MxhFlP5NUCEnY4mR_OJVqgciyBg</LIBSQL_TEST_CONNECTION>
+      <LIBSQL_TEST_CONNECTION>https://{db}.io/v2/pipeline;jwttoken</LIBSQL_TEST_CONNECTION>
     </EnvironmentVariables>
   </RunConfiguration>
 </RunSettings>

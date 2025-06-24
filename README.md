@@ -17,7 +17,7 @@ BMDRM.LibSQL.Core is an Entity Framework Core provider for [LibSQL](https://libs
 
 ## Features
 
-* ✅ **EF Core 8 Compatibility**
+* ✅ **EF Core 9 Compatibility**
 
   * LINQ-to-SQL translation
   * Change tracking

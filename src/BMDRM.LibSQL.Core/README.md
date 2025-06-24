@@ -1,68 +1,61 @@
-# Repository
+# BMDRM.LibSQL.Core
 
-**A BMDRM Innovation**
-*Pioneering EF Core Integration for LibSQL - Licensed Under MIT*
+**EF Core Provider for LibSQL — Maintained by BMDRM**
 
-[![build status](https://img.shields.io/azure-devops/build/dnceng-public/public/17/main)](https://dev.azure.com/dnceng-public/public/_build?definitionId=17)
-[![BMDRM.LibSql.Core NuGet](https://img.shields.io/nuget/v/BMDRM.LibSql.Core?label=BMDRM.LibSql.Core)](https://www.nuget.org/packages/BMDRM.LibSql.Core)
+[![Build Status](https://img.shields.io/azure-devops/build/dnceng-public/public/17/main)](https://dev.azure.com/dnceng-public/public/_build?definitionId=17)
+[![NuGet](https://img.shields.io/nuget/v/BMDRM.LibSql.Core?label=BMDRM.LibSql.Core)](https://www.nuget.org/packages/BMDRM.LibSql.Core)
 
-This repository hosts the **EFCore.LibSQL.Core** provider, a BMDRM-led project under the [.NET Foundation](https://dotnetfoundation.org/). Licensed under the [MIT License](LICENSE.txt), this solution emerged from our battle-tested experience scaling LibSQL in production.
+BMDRM.LibSQL.Core is an Entity Framework Core provider for [LibSQL](https://libsql.org/), developed and maintained by BMDRM. It is designed for performance, reliability, and production-grade compatibility with EF Core 9.0.
 
----
-
-## 🚀 EFCore.LibSQL.Core
-
-### The BMDRM Story
-*Why We Rewrote the Rules*
-
-After 18 months of wrestling with LibSQL's driver gaps, BMDRM engineered this provider to solve what off-the-shelf solutions couldn't:
-
-- **Production Nightmares**: Our e-commerce platform suffered 3hr downtime due to connection pooling leaks in community drivers
-- **Migration Chaos**: `ALTER TABLE` failures corrupted 12K customer records during a critical upgrade
-- **Scale-or-Die Moment**: 53K concurrent users brought our DIY driver to its knees
-
-**EFCore.LibSQL.Core is our answer** - now battle-hardened across 8 production deployments handling 1.2M RPM.
+> Licensed under the [MIT License](LICENSE.txt).
 
 ---
 
 ## Features
 
-✅ **EF Core 8 Full Compatibility**
-- LINQ-to-SQL translation
-- Change tracking
-- Migrations (yes, even `ALTER TABLE`)
+* ✅ **EF Core 9 Compatibility**
 
-🔥 **LibSQL-Specific Optimizations**
-- HTTP/2 connection pooling
-- JWT authentication flows
-- Distributed transaction support
+    * LINQ-to-SQL translation
+    * Change tracking
+    * Migration support
 
-🛡️ **BMDRM-Proven Reliability**
-- Zero connection leaks under 72hr stress tests
-- 100% migration success rate in CI/CD pipelines
-- 3ms latency overhead vs raw LibSQL
+* ⚙️ **LibSQL-Specific Enhancements**
+
+    * Optimized HTTP/2 connection pooling
+    * JWT-based authentication
+    * Distributed transaction support
+
+* 🧪 **Production-Tested**
+
+    * Stable under high concurrency
+    * Compatible with CI/CD workflows
 
 ---
 
-## Get Started
+## Getting Started
 
-1. **Install**
+### 1. Install Packages
+
 ```bash
-dotnet add package BMDRM.LibSql.Core --version 8.0.32
+dotnet add package BMDRM.LibSql.Core --version 9.0.0
+dotnet add package Microsoft.EntityFrameworkCore --version 9.0.7
+dotnet add package Microsoft.EntityFrameworkCore.Relational --version 9.0.7
+dotnet add package Microsoft.EntityFrameworkCore.Design --version 9.0.7
 ```
 
-2. **Configure**
+> **Note:** Use version `9.0.7` for EF Core packages to ensure compatibility. Support for EF Core 9 will be added in a future release.
+
+### 2. Configure Your Context
+
 ```csharp
-// Startup.cs
 services.AddDbContext<AppDbContext>(options =>
-    options.UseLibSql(config.GetConnectionString("LibSQL"),
-    x => x.EnableRetryOnFailure()));
+    options.UseLibSql(config.GetConnectionString("LibSQL")));
 ```
 
-3. **Deploy**
+### 3. Apply Migrations
+
 ```bash
-# Uses LibSQL's native migration engine
-dotnet ef database update --connection "https://cluster.turso.io;jwt=your_token"
+dotnet ef database update
 ```
 
 ---
@@ -71,56 +64,52 @@ dotnet ef database update --connection "https://cluster.turso.io;jwt=your_token"
 
 ```
 /src/EFCore.LibSQL.Core
-├── /BattleTested         # BMDRM's production-hardened components
-│   ├── ChaosInjector.cs  # Simulates network failures
-│   └── BulkOpsEngine.cs  # 50K writes/sec proven
-├── /Connection           # HTTP/2 connection pooling
-├── /Security             # JWT/NKey authentication
-└── /BMDRM.Extensions     # Our proprietary optimizations
+├── /Connection           # HTTP/2 connection management
+├── /Security             # JWT/NKey authentication handling
+└── /BMDRM.Extensions     # Additional performance enhancements
 ```
 
 ---
 
-## Why BMDRM's Approach Wins
+## Usage Example
 
 ```csharp
-// Before (Generic Driver)
-var results = await db.Users
-    .FromSqlRaw("SELECT * FROM users WHERE region = {0}", regionId)
-    .ToListAsync(); // 😱 SQL injection risk
-
-// After (EFCore.LibSQL.Core)
-var results = await db.Users
+// Standard EF Core usage
+var users = await db.Users
     .Where(u => u.Region == regionId)
-    .ToListAsync(); // ✅ Compiled query + JWT audit logging
+    .ToListAsync();
 ```
 
 ---
 
 ## Support
 
-**BMDRM-Grade Assistance**
-- [GitHub Issues](https://github.com/bmdrm/efcore-libsql-core/issues) - Response < 24hr SLA
-- Priority Support: support@bmdrm.dev
-- [Live Diagnostics Portal](https://status.bmdrm.dev)
+* [GitHub Issues](https://github.com/bmdrm/efcore-libsql-core/issues)
+* Email: [support@bmdrm.dev](mailto:support@bmdrm.dev)
+* Status: [status.bmdrm.dev](https://status.bmdrm.dev)
 
 ---
 
 ## License & Contribution
 
-- **MIT Licensed** - Free for commercial use
-- **BMDRM Maintained** - Core team reviews all PRs
-- **Roadmap Voting** - Users dictate feature priority
+* **License:** MIT
+* **Maintainers:** BMDRM Core Team
+* **Contributions:** All pull requests are reviewed
+* **Build from Source:**
 
 ```bash
-# Build from source (BMDRM-flavored)
 git clone https://github.com/bmdrm/BMDRM.LibSql.git
 ./build.sh --use-hardened
 ```
 
 ---
 
-*BMDRM Team*
-*"We Survived LibSQL's Edge Cases So You Don't Have To"*
+## Resources
 
-[📚 Documentation](https://libsql.bmdrm.dev) | [💬 Community Forum](https://forum.bmdrm.dev) | [🚨 Incident History](https://status.bmdrm.dev)
+* [Documentation](https://libsql.bmdrm.dev)
+* [Community Forum](https://forum.bmdrm.dev)
+* [Service Status](https://status.bmdrm.dev)
+
+---
+
+If you'd like, I can also provide a markdown file with this cleaned-up content, or tailor the tone further for enterprise clients or developers.
