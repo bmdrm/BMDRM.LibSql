@@ -1,7 +1,3 @@
-Here’s a cleaned-up, professional version of your `README.md` that maintains all technical information while removing the dramatic tone:
-
----
-
 # BMDRM.LibSQL.Core
 
 **EF Core Provider for LibSQL — Maintained by BMDRM**
