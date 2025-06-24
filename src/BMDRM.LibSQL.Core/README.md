@@ -33,7 +33,7 @@ BMDRM.LibSQL.Core is an Entity Framework Core provider for [LibSQL](https://libs
 ---
 
 ## Getting Started
-
+[BMDRM.LibSQL.Core.csproj](BMDRM.LibSQL.Core.csproj)[BMDRM.LibSQL.Core.csproj](BMDRM.LibSQL.Core.csproj)
 ### 1. Install Packages
 
 ```bash
