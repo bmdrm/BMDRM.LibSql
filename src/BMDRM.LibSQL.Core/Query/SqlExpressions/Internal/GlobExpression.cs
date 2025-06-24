@@ -16,6 +16,8 @@ namespace Microsoft.EntityFrameworkCore.LibSql.Query.SqlExpressions.Internal;
 /// </summary>
 public class GlobExpression : SqlExpression
 {
+    private static ConstructorInfo? _quotingConstructor;
+
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
     ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
@@ -78,6 +80,15 @@ public class GlobExpression : SqlExpression
         => match != Match || pattern != Pattern
             ? new GlobExpression(match, pattern, TypeMapping)
             : this;
+
+    /// <inheritdoc />
+    public override Expression Quote()
+        => New(
+            _quotingConstructor ??= typeof(GlobExpression).GetConstructor(
+                [typeof(SqlExpression), typeof(SqlExpression), typeof(RelationalTypeMapping)])!,
+            Match.Quote(),
+            Pattern.Quote(),
+            RelationalExpressionQuotingUtilities.QuoteTypeMapping(TypeMapping));
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to

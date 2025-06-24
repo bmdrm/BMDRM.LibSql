@@ -28,9 +28,7 @@ public class LibSqlExpressionFactory : SqlExpressionFactory
     /// </summary>
     public LibSqlExpressionFactory(SqlExpressionFactoryDependencies dependencies)
         : base(dependencies)
-    {
-        _boolTypeMapping = dependencies.TypeMappingSource.FindMapping(typeof(bool), dependencies.Model)!;
-    }
+        => _boolTypeMapping = dependencies.TypeMappingSource.FindMapping(typeof(bool), dependencies.Model)!;
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -38,7 +36,7 @@ public class LibSqlExpressionFactory : SqlExpressionFactory
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    public virtual SqlFunctionExpression Strftime(
+    public virtual SqlExpression Strftime(
         Type returnType,
         string format,
         SqlExpression timestring,
@@ -85,7 +83,7 @@ public class LibSqlExpressionFactory : SqlExpressionFactory
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    public virtual SqlFunctionExpression Date(
+    public virtual SqlExpression Date(
         Type returnType,
         SqlExpression timestring,
         IEnumerable<SqlExpression>? modifiers = null,
@@ -116,8 +114,6 @@ public class LibSqlExpressionFactory : SqlExpressionFactory
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-     #pragma warning disable EF1001 // Internal EF Core API usage.
-
     public virtual GlobExpression Glob(SqlExpression match, SqlExpression pattern)
     {
         var inferredTypeMapping = ExpressionExtensions.InferTypeMapping(match, pattern)
@@ -152,7 +148,7 @@ public class LibSqlExpressionFactory : SqlExpressionFactory
     ///     any release. You should only use it directly in your code with extreme caution and knowing that
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
-    [return: NotNullIfNotNull("sqlExpression")]
+    [return: NotNullIfNotNull(nameof(sqlExpression))]
     public override SqlExpression? ApplyTypeMapping(SqlExpression? sqlExpression, RelationalTypeMapping? typeMapping)
         => sqlExpression is not { TypeMapping: null }
             ? sqlExpression
@@ -189,3 +185,4 @@ public class LibSqlExpressionFactory : SqlExpressionFactory
             : regexpExpression;
     }
 }
+

@@ -27,10 +27,26 @@ public class LibSqlQueryableMethodTranslatingExpressionVisitor : RelationalQuery
 {
     private readonly IRelationalTypeMappingSource _typeMappingSource;
     private readonly LibSqlExpressionFactory _sqlExpressionFactory;
+    private readonly SqlAliasManager _sqlAliasManager;
     private readonly bool _areJsonFunctionsSupported;
 
-    private static readonly bool UseOldBehavior33932 =
-        AppContext.TryGetSwitch("Microsoft.EntityFrameworkCore.Issue33932", out var enabled33932) && enabled33932;
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    [EntityFrameworkInternal] // https://www.LibSql.org/json1.html#jeach
+    public const string JsonEachKeyColumnName = "key";
+
+    /// <summary>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </summary>
+    [EntityFrameworkInternal] // https://www.LibSql.org/json1.html#jeach
+    public const string JsonEachValueColumnName = "value";
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -41,11 +57,12 @@ public class LibSqlQueryableMethodTranslatingExpressionVisitor : RelationalQuery
     public LibSqlQueryableMethodTranslatingExpressionVisitor(
         QueryableMethodTranslatingExpressionVisitorDependencies dependencies,
         RelationalQueryableMethodTranslatingExpressionVisitorDependencies relationalDependencies,
-        QueryCompilationContext queryCompilationContext)
+        RelationalQueryCompilationContext queryCompilationContext)
         : base(dependencies, relationalDependencies, queryCompilationContext)
     {
         _typeMappingSource = relationalDependencies.TypeMappingSource;
         _sqlExpressionFactory = (LibSqlExpressionFactory)relationalDependencies.SqlExpressionFactory;
+        _sqlAliasManager = queryCompilationContext.SqlAliasManager;
 
         _areJsonFunctionsSupported = true;
     }
@@ -62,6 +79,7 @@ public class LibSqlQueryableMethodTranslatingExpressionVisitor : RelationalQuery
     {
         _typeMappingSource = parentVisitor._typeMappingSource;
         _sqlExpressionFactory = parentVisitor._sqlExpressionFactory;
+        _sqlAliasManager = parentVisitor._sqlAliasManager;
 
         _areJsonFunctionsSupported = parentVisitor._areJsonFunctionsSupported;
     }
@@ -88,13 +106,13 @@ public class LibSqlQueryableMethodTranslatingExpressionVisitor : RelationalQuery
             && source.QueryExpression is SelectExpression
             {
                 Tables: [TableValuedFunctionExpression { Name: "json_each", Schema: null, IsBuiltIn: true, Arguments: [var array] }],
+                Predicate: null,
                 GroupBy: [],
                 Having: null,
                 IsDistinct: false,
                 Limit: null,
                 Offset: null
-            } subquery
-            && (UseOldBehavior33932 || subquery.Predicate is null))
+            })
         {
             var translation =
                 _sqlExpressionFactory.GreaterThan(
@@ -106,7 +124,9 @@ public class LibSqlQueryableMethodTranslatingExpressionVisitor : RelationalQuery
                         typeof(int)),
                     _sqlExpressionFactory.Constant(0));
 
-            return source.UpdateQueryExpression(_sqlExpressionFactory.Select(translation));
+#pragma warning disable EF1001
+            return source.UpdateQueryExpression(new SelectExpression(translation, _sqlAliasManager));
+#pragma warning restore EF1001
         }
 
         return base.TranslateAny(source, predicate);
@@ -187,13 +207,13 @@ public class LibSqlQueryableMethodTranslatingExpressionVisitor : RelationalQuery
             && source.QueryExpression is SelectExpression
             {
                 Tables: [TableValuedFunctionExpression { Name: "json_each", Schema: null, IsBuiltIn: true, Arguments: [var array] }],
+                Predicate: null,
                 GroupBy: [],
                 Having: null,
                 IsDistinct: false,
                 Limit: null,
                 Offset: null
-            } subquery
-            && (UseOldBehavior33932 || subquery.Predicate is null))
+            })
         {
             var translation = _sqlExpressionFactory.Function(
                 "json_array_length",
@@ -202,7 +222,9 @@ public class LibSqlQueryableMethodTranslatingExpressionVisitor : RelationalQuery
                 argumentsPropagateNullability: new[] { true },
                 typeof(int));
 
-            return source.UpdateQueryExpression(_sqlExpressionFactory.Select(translation));
+#pragma warning disable EF1001
+            return source.UpdateQueryExpression(new SelectExpression(translation, _sqlAliasManager));
+#pragma warning restore EF1001
         }
 
         return base.TranslateCount(source, predicate);
@@ -230,8 +252,6 @@ public class LibSqlQueryableMethodTranslatingExpressionVisitor : RelationalQuery
 
         var elementTypeMapping = (RelationalTypeMapping?)sqlExpression.TypeMapping?.ElementTypeMapping;
         var elementClrType = sqlExpression.Type.GetSequenceType();
-#pragma warning disable EF1001 // Internal EF Core API usage.
-
         var jsonEachExpression = new JsonEachExpression(tableAlias, sqlExpression);
 
         // If this is a collection property, get the element's nullability out of metadata. Otherwise, this is a parameter property, in
@@ -240,15 +260,23 @@ public class LibSqlQueryableMethodTranslatingExpressionVisitor : RelationalQuery
         // collection).
         var isElementNullable = property?.GetElementType()!.IsNullable;
 
+        var keyColumnTypeMapping = _typeMappingSource.FindMapping(typeof(int))!;
+
+#pragma warning disable EF1001 // Internal EF Core API usage.
         var selectExpression = new SelectExpression(
-            jsonEachExpression,
-            columnName: "value",
-            columnType: elementClrType,
-            columnTypeMapping: elementTypeMapping,
-            isElementNullable,
-            identifierColumnName: "key",
-            identifierColumnType: typeof(int),
-            identifierColumnTypeMapping: _typeMappingSource.FindMapping(typeof(int)));
+            [jsonEachExpression],
+            new ColumnExpression(
+                JsonEachValueColumnName,
+                tableAlias,
+                elementClrType.UnwrapNullableType(),
+                elementTypeMapping,
+                isElementNullable ?? elementClrType.IsNullableType()),
+            identifier:
+            [
+                (new ColumnExpression(JsonEachKeyColumnName, tableAlias, typeof(int), keyColumnTypeMapping, nullable: false),
+                    keyColumnTypeMapping.Comparer)
+            ],
+            _sqlAliasManager);
 #pragma warning restore EF1001 // Internal EF Core API usage.
 
         // If we have a collection column, we know the type mapping at this point (as opposed to parameters, whose type mapping will get
@@ -266,7 +294,7 @@ public class LibSqlQueryableMethodTranslatingExpressionVisitor : RelationalQuery
             new OrderingExpression(
                 selectExpression.CreateColumnExpression(
                     jsonEachExpression,
-                    "key",
+                    JsonEachKeyColumnName,
                     typeof(int),
                     typeMapping: _typeMappingSource.FindMapping(typeof(int)),
                     columnNullable: false),
@@ -302,7 +330,7 @@ public class LibSqlQueryableMethodTranslatingExpressionVisitor : RelationalQuery
         // Calculate the table alias for the json_each expression based on the last named path segment
         // (or the JSON column name if there are none)
         var lastNamedPathSegment = jsonQueryExpression.Path.LastOrDefault(ps => ps.PropertyName is not null);
-        var tableAlias = char.ToLowerInvariant((lastNamedPathSegment.PropertyName ?? jsonQueryExpression.JsonColumn.Name)[0]).ToString();
+        var tableAlias = _sqlAliasManager.GenerateTableAlias(lastNamedPathSegment.PropertyName ?? jsonQueryExpression.JsonColumn.Name);
 
         // Handling a non-primitive JSON array is complicated on LibSql; unlike SQL Server OPENJSON and PostgreSQL jsonb_to_recordset,
         // LibSql's json_each can only project elements of the array, and not properties within those elements. For example:
@@ -321,14 +349,14 @@ public class LibSqlQueryableMethodTranslatingExpressionVisitor : RelationalQuery
         // ColumnExpression (the above requires JsonScalarExpression). So we hack as if the subquery projects an anonymous type instead,
         // with a member for each JSON property that needs to be projected. We then wrap it with a SelectExpression the projects a proper
         // EntityProjectionExpression.
-#pragma warning disable EF1001 // Internal EF Core API usage.
 
         var jsonEachExpression = new JsonEachExpression(tableAlias, jsonQueryExpression.JsonColumn, jsonQueryExpression.Path);
 
-        var selectExpression = new SelectExpression(
+#pragma warning disable EF1001 // Internal EF Core API usage.
+        var selectExpression = CreateSelect(
             jsonQueryExpression,
             jsonEachExpression,
-            "key",
+            JsonEachKeyColumnName,
             typeof(int),
             _typeMappingSource.FindMapping(typeof(int))!);
 #pragma warning restore EF1001 // Internal EF Core API usage.
@@ -337,7 +365,7 @@ public class LibSqlQueryableMethodTranslatingExpressionVisitor : RelationalQuery
             new OrderingExpression(
                 selectExpression.CreateColumnExpression(
                     jsonEachExpression,
-                    "key",
+                    JsonEachKeyColumnName,
                     typeof(int),
                     typeMapping: _typeMappingSource.FindMapping(typeof(int)),
                     columnNullable: false),
@@ -346,7 +374,7 @@ public class LibSqlQueryableMethodTranslatingExpressionVisitor : RelationalQuery
         var propertyJsonScalarExpression = new Dictionary<ProjectionMember, Expression>();
 
         var jsonColumn = selectExpression.CreateColumnExpression(
-            jsonEachExpression, "value", typeof(string), _typeMappingSource.FindMapping(typeof(string))); // TODO: nullable?
+            jsonEachExpression, JsonEachValueColumnName, typeof(string), _typeMappingSource.FindMapping(typeof(string))); // TODO: nullable?
 
         var containerColumnName = entityType.GetContainerColumnName();
         Check.DebugAssert(containerColumnName is not null, "JsonQueryExpression to entity type without a container column name");
@@ -355,7 +383,7 @@ public class LibSqlQueryableMethodTranslatingExpressionVisitor : RelationalQuery
         // (SELECT value ->> 'a' AS a, value ->> 'b' AS b FROM json_each(c."JsonColumn", '$.Something.SomeCollection')
 
         // We're only interested in properties which actually exist in the JSON, filter out uninteresting shadow keys
-        foreach (var property in GetAllPropertiesInHierarchy(entityType))
+        foreach (var property in entityType.GetPropertiesInHierarchy())
         {
             if (property.GetJsonPropertyName() is string jsonPropertyName)
             {
@@ -373,7 +401,7 @@ public class LibSqlQueryableMethodTranslatingExpressionVisitor : RelationalQuery
             }
         }
 
-        foreach (var navigation in GetAllNavigationsInHierarchy(jsonQueryExpression.EntityType)
+        foreach (var navigation in jsonQueryExpression.EntityType.GetNavigationsInHierarchy()
                      .Where(
                          n => n.ForeignKey.IsOwnership
                              && n.TargetEntityType.IsMappedToJson()
@@ -403,10 +431,10 @@ public class LibSqlQueryableMethodTranslatingExpressionVisitor : RelationalQuery
         var subquery = selectExpression.Tables[0];
 
 #pragma warning disable EF1001 // Internal EF Core API usage.
-        var newOuterSelectExpression = new SelectExpression(
+        var newOuterSelectExpression = CreateSelect(
             jsonQueryExpression,
             subquery,
-            "key",
+            JsonEachKeyColumnName,
             typeof(int),
             _typeMappingSource.FindMapping(typeof(int))!);
 #pragma warning restore EF1001 // Internal EF Core API usage.
@@ -415,7 +443,7 @@ public class LibSqlQueryableMethodTranslatingExpressionVisitor : RelationalQuery
             new OrderingExpression(
                 selectExpression.CreateColumnExpression(
                     subquery,
-                    "key",
+                    JsonEachKeyColumnName,
                     typeof(int),
                     typeMapping: _typeMappingSource.FindMapping(typeof(int)),
                     columnNullable: false),
@@ -430,15 +458,6 @@ public class LibSqlQueryableMethodTranslatingExpressionVisitor : RelationalQuery
                     new ProjectionMember(),
                     typeof(ValueBuffer)),
                 false));
-
-        // TODO: Move these to IEntityType?
-        static IEnumerable<IProperty> GetAllPropertiesInHierarchy(IEntityType entityType)
-            => entityType.GetAllBaseTypes().Concat(entityType.GetDerivedTypesInclusive())
-                .SelectMany(t => t.GetDeclaredProperties());
-
-        static IEnumerable<INavigation> GetAllNavigationsInHierarchy(IEntityType entityType)
-            => entityType.GetAllBaseTypes().Concat(entityType.GetDerivedTypesInclusive())
-                .SelectMany(t => t.GetDeclaredNavigations());
     }
 
     /// <summary>
@@ -462,16 +481,16 @@ public class LibSqlQueryableMethodTranslatingExpressionVisitor : RelationalQuery
                         Name: "json_each", Schema: null, IsBuiltIn: true, Arguments: [var jsonArrayColumn]
                     } jsonEachExpression
                 ],
+                Predicate: null,
                 GroupBy: [],
                 Having: null,
                 IsDistinct: false,
-                Orderings: [{ Expression: ColumnExpression { Name: "key" } orderingColumn, IsAscending: true }],
+                Orderings: [{ Expression: ColumnExpression { Name: JsonEachKeyColumnName } orderingColumn, IsAscending: true }],
                 Limit: null,
                 Offset: null
             } selectExpression
-            && orderingColumn.Table == jsonEachExpression
-            && TranslateExpression(index) is { } translatedIndex
-            && (UseOldBehavior33932 || selectExpression.Predicate is null))
+            && orderingColumn.TableAlias == jsonEachExpression.Alias
+            && TranslateExpression(index) is { } translatedIndex)
         {
             // Index on JSON array
 
@@ -502,7 +521,9 @@ public class LibSqlQueryableMethodTranslatingExpressionVisitor : RelationalQuery
                         translation, _sqlExpressionFactory, projectionColumn.TypeMapping, projectionColumn.IsNullable);
                 }
 
-                return source.UpdateQueryExpression(_sqlExpressionFactory.Select(translation));
+#pragma warning disable EF1001
+                return source.UpdateQueryExpression(new SelectExpression(translation, _sqlAliasManager));
+#pragma warning restore EF1001
             }
         }
 
@@ -523,19 +544,21 @@ public class LibSqlQueryableMethodTranslatingExpressionVisitor : RelationalQuery
                 Orderings:
                 [
                     {
-                        Expression: ColumnExpression { Name: "key", Table: var orderingTable } orderingColumn,
+                        Expression: ColumnExpression { Name: JsonEachKeyColumnName } orderingColumn,
                         IsAscending: true
                     }
                 ]
             }
-            && orderingTable == mainTable
-            && IsJsonEachKeyColumn(orderingColumn);
+            && orderingColumn.TableAlias == mainTable.Alias
+            && IsJsonEachKeyColumn(selectExpression, orderingColumn);
 
-        bool IsJsonEachKeyColumn(ColumnExpression orderingColumn)
-            => orderingColumn.Table is JsonEachExpression
-                || (orderingColumn.Table is SelectExpression subquery
-                    && subquery.Projection.FirstOrDefault(p => p.Alias == "key")?.Expression is ColumnExpression projectedColumn
-                    && IsJsonEachKeyColumn(projectedColumn));
+        bool IsJsonEachKeyColumn(SelectExpression selectExpression, ColumnExpression orderingColumn)
+            => selectExpression.Tables.FirstOrDefault(t => t.Alias == orderingColumn.TableAlias)?.UnwrapJoin() is TableExpressionBase table
+                && (table is JsonEachExpression
+                    || (table is SelectExpression subquery
+                        && subquery.Projection.FirstOrDefault(p => p.Alias == JsonEachKeyColumnName)?.Expression is ColumnExpression
+                            projectedColumn
+                        && IsJsonEachKeyColumn(subquery, projectedColumn)));
     }
 
     private static Type GetProviderType(SqlExpression expression)
@@ -544,159 +567,45 @@ public class LibSqlQueryableMethodTranslatingExpressionVisitor : RelationalQuery
             ?? expression.Type;
 
     /// <summary>
-    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
-    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
-    ///     any release. You should only use it directly in your code with extreme caution and knowing that
-    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
-    /// </summary>
-    protected override Expression ApplyInferredTypeMappings(
-        Expression expression,
-        IReadOnlyDictionary<(TableExpressionBase, string), RelationalTypeMapping?> inferredTypeMappings)
-        => new LibSqlInferredTypeMappingApplier(
-            RelationalDependencies.Model, _typeMappingSource, _sqlExpressionFactory, inferredTypeMappings).Visit(expression);
-
-    /// <summary>
-    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
-    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
-    ///     any release. You should only use it directly in your code with extreme caution and knowing that
-    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
-    /// </summary>
-    protected class LibSqlInferredTypeMappingApplier : RelationalInferredTypeMappingApplier
-    {
-        private readonly IRelationalTypeMappingSource _typeMappingSource;
-        private readonly LibSqlExpressionFactory _sqlExpressionFactory;
-        private Dictionary<TableExpressionBase, RelationalTypeMapping>? _currentSelectInferredTypeMappings;
-
-        /// <summary>
-        ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
-        ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
-        ///     any release. You should only use it directly in your code with extreme caution and knowing that
-        ///     doing so can result in application failures when updating to a new Entity Framework Core release.
-        /// </summary>
-        public LibSqlInferredTypeMappingApplier(
-            IModel model,
-            IRelationalTypeMappingSource typeMappingSource,
-            LibSqlExpressionFactory sqlExpressionFactory,
-            IReadOnlyDictionary<(TableExpressionBase, string), RelationalTypeMapping?> inferredTypeMappings)
-            : base(model, sqlExpressionFactory, inferredTypeMappings)
-        {
-            (_typeMappingSource, _sqlExpressionFactory) = (typeMappingSource, sqlExpressionFactory);
-        }
-
-        /// <summary>
-        ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
-        ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
-        ///     any release. You should only use it directly in your code with extreme caution and knowing that
-        ///     doing so can result in application failures when updating to a new Entity Framework Core release.
-        /// </summary>
-        protected override Expression VisitExtension(Expression expression)
-        {
-            switch (expression)
-            {
-                case TableValuedFunctionExpression { Name: "json_each", Schema: null, IsBuiltIn: true } jsonEachExpression
-                    when TryGetInferredTypeMapping(jsonEachExpression, "value", out var typeMapping):
-                    return ApplyTypeMappingsOnJsonEachExpression(jsonEachExpression, typeMapping);
-
-                // Above, we applied the type mapping the the parameter that json_each accepts as an argument.
-                // But the inferred type mapping also needs to be applied as a SQL conversion on the column projections coming out of the
-                // SelectExpression containing the json_each call. So we set state to know about json_each tables and their type mappings
-                // in the immediate SelectExpression, and continue visiting down (see ColumnExpression visitation below).
-                case SelectExpression selectExpression:
-                {
-                    Dictionary<TableExpressionBase, RelationalTypeMapping>? previousSelectInferredTypeMappings = null;
-
-                    foreach (var table in selectExpression.Tables)
-                    {
-                        if (table is TableValuedFunctionExpression { Name: "json_each", Schema: null, IsBuiltIn: true } jsonEachExpression
-                            && TryGetInferredTypeMapping(jsonEachExpression, "value", out var inferredTypeMapping))
-                        {
-                            if (previousSelectInferredTypeMappings is null)
-                            {
-                                previousSelectInferredTypeMappings = _currentSelectInferredTypeMappings;
-                                _currentSelectInferredTypeMappings = new Dictionary<TableExpressionBase, RelationalTypeMapping>();
-                            }
-
-                            _currentSelectInferredTypeMappings![jsonEachExpression] = inferredTypeMapping;
-                        }
-                    }
-
-                    var visited = base.VisitExtension(expression);
-
-                    _currentSelectInferredTypeMappings = previousSelectInferredTypeMappings;
-
-                    return visited;
-                }
-
-                // Note that we match also ColumnExpressions which already have a type mapping, i.e. coming out of column collections (as
-                // opposed to parameter collections, where the type mapping needs to be inferred). This is in order to apply SQL conversion
-                // logic later in the process, see note in TranslateCollection.
-                case ColumnExpression { Name: "value" } columnExpression
-                    when _currentSelectInferredTypeMappings?.TryGetValue(columnExpression.Table, out var inferredTypeMapping) is true:
-                    return ApplyJsonSqlConversion(
-                        columnExpression.ApplyTypeMapping(inferredTypeMapping),
-                        _sqlExpressionFactory,
-                        inferredTypeMapping,
-                        columnExpression.IsNullable);
-
-                default:
-                    return base.VisitExtension(expression);
-            }
-        }
-
-        /// <summary>
-        ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
-        ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
-        ///     any release. You should only use it directly in your code with extreme caution and knowing that
-        ///     doing so can result in application failures when updating to a new Entity Framework Core release.
-        /// </summary>
-        protected virtual TableValuedFunctionExpression ApplyTypeMappingsOnJsonEachExpression(
-            TableValuedFunctionExpression jsonEachExpression,
-            RelationalTypeMapping inferredTypeMapping)
-        {
-            // Constant queryables are translated to VALUES, no need for JSON.
-            // Column queryables have their type mapping from the model, so we don't ever need to apply an inferred mapping on them.
-            if (jsonEachExpression.Arguments[0] is not SqlParameterExpression parameterExpression)
-            {
-                return jsonEachExpression;
-            }
-
-            if (_typeMappingSource.FindMapping(parameterExpression.Type, Model, inferredTypeMapping) is not LibSqlStringTypeMapping
-                parameterTypeMapping)
-            {
-                throw new InvalidOperationException("Type mapping for 'string' could not be found or was not a LibSqlStringTypeMapping");
-            }
-
-            Check.DebugAssert(parameterTypeMapping.ElementTypeMapping != null, "Collection type mapping missing element mapping.");
-
-            return jsonEachExpression.Update(new[] { parameterExpression.ApplyTypeMapping(parameterTypeMapping) });
-        }
-    }
-
-    /// <summary>
     ///     Wraps the given expression with any SQL logic necessary to convert a value coming out of a JSON document into the relational value
     ///     represented by the given type mapping.
     /// </summary>
-    private static SqlExpression ApplyJsonSqlConversion(
+    /// <remarks>
+    ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
+    ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
+    ///     any release. You should only use it directly in your code with extreme caution and knowing that
+    ///     doing so can result in application failures when updating to a new Entity Framework Core release.
+    /// </remarks>
+    [EntityFrameworkInternal]
+    public static SqlExpression ApplyJsonSqlConversion(
         SqlExpression expression,
         LibSqlExpressionFactory sqlExpressionFactory,
         RelationalTypeMapping typeMapping,
         bool isNullable)
         => typeMapping switch
         {
+            // In general unhex returns NULL whenever the decoding fails.
+            // In this case, we assume that the decoding cannot fail, because we
+            // rely on the user to correctly model the database schema and
+            // contents. Under this assumption, `expression` can only be a valid
+            // hex string or NULL, hence unhex simply propagates the nullability
+            // from its argument.
+
             ByteArrayTypeMapping
-                => sqlExpressionFactory.Function("unhex", new[] { expression }, isNullable, new[] { true }, typeof(byte[]), typeMapping),
+                => sqlExpressionFactory.Function(
+                    "unhex",
+                    new[] { expression },
+                    nullable: true,
+                    argumentsPropagateNullability: new[] { true },
+                    typeof(byte[]),
+                    typeMapping),
 
             _ => expression
         };
 
-    private sealed class FakeMemberInfo : MemberInfo
+    private sealed class FakeMemberInfo(string name) : MemberInfo
     {
-        public FakeMemberInfo(string name)
-        {
-            Name = name;
-        }
-
-        public override string Name { get; }
+        public override string Name { get; } = name;
 
         public override object[] GetCustomAttributes(bool inherit)
             => throw new NotSupportedException();

@@ -5,7 +5,7 @@ namespace Microsoft.EntityFrameworkCore.Connection
 {
     public class HttpDbFixture : IAsyncLifetime
     {
-        public IHttpClientFactory HttpClientFactory { get; private set; }
+        public IHttpClientFactory HttpClientFactory { get; private set; } = null!;
 
         public async Task InitializeAsync()
         {

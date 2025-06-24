@@ -50,7 +50,7 @@ public class LibSqlCodeGeneratorTest
     }
 
     private static readonly MethodInfo _setProviderOptionMethodInfo
-        = typeof(LibSqlCodeGeneratorTest).GetRuntimeMethod(nameof(SetProviderOption), new[] { typeof(DbContextOptionsBuilder) });
+        = typeof(LibSqlCodeGeneratorTest).GetRuntimeMethod(nameof(SetProviderOption), new[] { typeof(DbContextOptionsBuilder) })!;
 
     public static LibSqlDbContextOptionsBuilder SetProviderOption(DbContextOptionsBuilder optionsBuilder)
         => throw new NotSupportedException();

@@ -21,7 +21,7 @@ namespace Microsoft.EntityFrameworkCore.LibSql.Query.SqlExpressions.Internal;
 ///         doing so can result in application failures when updating to a new Entity Framework Core release.
 ///     </para>
 /// </remarks>
-public class JsonEachExpression : TableValuedFunctionExpression, IClonableTableExpressionBase
+public class JsonEachExpression : TableValuedFunctionExpression
 {
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to

@@ -18,6 +18,8 @@ namespace Microsoft.EntityFrameworkCore.LibSql.Storage.Json.Internal;
 /// </remarks>
 public sealed class LibSqlJsonGuidReaderWriter : JsonValueReaderWriter<Guid>
 {
+    private static readonly PropertyInfo InstanceProperty = typeof(LibSqlJsonGuidReaderWriter).GetProperty(nameof(Instance))!;
+
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
     ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
@@ -47,4 +49,10 @@ public sealed class LibSqlJsonGuidReaderWriter : JsonValueReaderWriter<Guid>
     /// </summary>
     public override void ToJsonTyped(Utf8JsonWriter writer, Guid value)
         => writer.WriteStringValue(value.ToString().ToUpperInvariant());
+
+    /// <summary>
+    ///     The expression representing construction of this object.
+    /// </summary>
+    public override Expression ConstructorExpression
+        => Expression.Property(null, InstanceProperty);
 }

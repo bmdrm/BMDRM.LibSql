@@ -3,8 +3,6 @@
 
 #nullable enable
 
-using System.Diagnostics;
-
 // ReSharper disable once CheckNamespace
 
 namespace System.Reflection;

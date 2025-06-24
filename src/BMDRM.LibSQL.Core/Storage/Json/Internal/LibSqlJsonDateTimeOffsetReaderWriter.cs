@@ -21,6 +21,7 @@ namespace Microsoft.EntityFrameworkCore.LibSql.Storage.Json.Internal;
 public sealed class LibSqlJsonDateTimeOffsetReaderWriter : JsonValueReaderWriter<DateTimeOffset>
 {
     private const string DateTimeOffsetFormatConst = @"{0:yyyy\-MM\-dd HH\:mm\:ss.FFFFFFFzzz}";
+    private static readonly PropertyInfo InstanceProperty = typeof(LibSqlJsonDateTimeOffsetReaderWriter).GetProperty(nameof(Instance))!;
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -56,4 +57,7 @@ public sealed class LibSqlJsonDateTimeOffsetReaderWriter : JsonValueReaderWriter
             JsonEncodedText.Encode(
                 string.Format(CultureInfo.InvariantCulture, DateTimeOffsetFormatConst, value),
                 JavaScriptEncoder.UnsafeRelaxedJsonEscaping));
+    /// <inheritdoc />
+    public override Expression ConstructorExpression
+        => Expression.Property(null, InstanceProperty);
 }

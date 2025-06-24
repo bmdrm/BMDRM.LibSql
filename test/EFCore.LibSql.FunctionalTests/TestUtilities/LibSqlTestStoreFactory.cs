@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore.LibSql.DependencyInjection;
 
 namespace Microsoft.EntityFrameworkCore.TestUtilities
 {
-    public class LibSqlTestStoreFactory : RelationalTestStoreFactory
+    internal class LibSqlTestStoreFactory : RelationalTestStoreFactory
     {
         public static LibSqlTestStoreFactory Instance { get; set; } = default!;
         private string TestConnectionString = LibSqlTestSettings.ConnectionString;
@@ -28,10 +28,7 @@ namespace Microsoft.EntityFrameworkCore.TestUtilities
         public TestStore GetOrCreate<TContext>(string storeName) where TContext : DbContext
         {
             var store = LibSqlTestStore.GetOrCreate(storeName, _httpClientFactory);
-            return store.Initialize(
-                new ServiceCollection().AddEntityFrameworkLibSql().BuildServiceProvider(validateScopes: true),
-                () => store.CreateContext<TContext>(new ServiceCollection().AddEntityFrameworkLibSql().BuildServiceProvider(validateScopes: true)),
-                null!);
+            return store;
         }
 
         public override IServiceCollection AddProviderServices(IServiceCollection serviceCollection)

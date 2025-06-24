@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.LibSql.Storage.Internal;
 
 namespace Microsoft.EntityFrameworkCore.Storage;
 
-public class LibSqlTypeMappingSourceTest : RelationalTypeMapperTestBase
+public class LibSqlTypeMappingSourceTest : RelationalTypeMappingSourceTestBase
 {
     [ConditionalTheory]
     [InlineData("INTEGER", typeof(byte), DbType.Byte)]
@@ -391,7 +391,7 @@ public class LibSqlTypeMappingSourceTest : RelationalTypeMapperTestBase
     protected enum SByteEnum : sbyte
     {
     }
-    protected override ModelBuilder CreateModelBuilder(Action<ModelConfigurationBuilder> configureConventions = null)
+    protected override ModelBuilder CreateModelBuilder(Action<ModelConfigurationBuilder>? configureConventions = null)
         => LibSqlTestHelpers.Instance.CreateConventionBuilder(configureConventions: configureConventions);
 
 }

@@ -20,8 +20,8 @@ public class LibSqlParameterBasedSqlProcessor : RelationalParameterBasedSqlProce
     /// </summary>
     public LibSqlParameterBasedSqlProcessor(
         RelationalParameterBasedSqlProcessorDependencies dependencies,
-        bool useRelationalNulls)
-        : base(dependencies, useRelationalNulls)
+        RelationalParameterBasedSqlProcessorParameters parameters)
+        : base(dependencies, parameters)
     {
     }
 
@@ -35,5 +35,5 @@ public class LibSqlParameterBasedSqlProcessor : RelationalParameterBasedSqlProce
         Expression queryExpression,
         IReadOnlyDictionary<string, object?> parametersValues,
         out bool canCache)
-        => new LibSqlSqlNullabilityProcessor(Dependencies, UseRelationalNulls).Process(queryExpression, parametersValues, out canCache);
+        => new LibSqlSqlNullabilityProcessor(Dependencies, Parameters).Process(queryExpression, parametersValues, out canCache);
 }

@@ -1,11 +1,11 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-using System.Data;
-using Microsoft.EntityFrameworkCore.LibSql.Storage.Json.Internal;
-using Microsoft.EntityFrameworkCore.Storage;
+
 
 namespace Microsoft.EntityFrameworkCore.LibSql.Storage.Internal;
+using System.Data;
+using Microsoft.EntityFrameworkCore.LibSql.Storage.Json.Internal;
 
 /// <summary>
 ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -24,6 +24,7 @@ public class LibSqlDecimalTypeMapping : DecimalTypeMapping
     public static new LibSqlDecimalTypeMapping Default { get; } = new(LibSqlTypeMappingSource.TextTypeName);
 
     /// <summary>
+    ///     Initializes a new instance of the <see cref="LibSqlDecimalTypeMapping"/> class.
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
     ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
     ///     any release. You should only use it directly in your code with extreme caution and knowing that

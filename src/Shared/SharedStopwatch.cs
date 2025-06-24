@@ -1,8 +1,6 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-using System.Diagnostics;
-
 namespace Microsoft.EntityFrameworkCore.Utilities;
 
 // Copied from https://github.com/dotnet/roslyn/blob/main/src/Compilers/Core/Portable/InternalUtilities/SharedStopwatch.cs

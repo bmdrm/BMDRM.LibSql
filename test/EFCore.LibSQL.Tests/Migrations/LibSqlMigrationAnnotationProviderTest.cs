@@ -17,7 +17,7 @@ public class LibSqlMigrationAnnotationProviderTest
 
         Assert.DoesNotContain(
             _provider.For(property.GetTableColumnMappings().Single().Column, true),
-            a => a.Name == _autoincrement.Name && (bool)a.Value);
+            a => a.Name == _autoincrement.Name && (bool)a.Value!);
     }
 
     [ConditionalFact]
@@ -29,7 +29,7 @@ public class LibSqlMigrationAnnotationProviderTest
 
         Assert.Contains(
             _provider.For(property.GetTableColumnMappings().Single().Column, true),
-            a => a.Name == _autoincrement.Name && (bool)a.Value);
+            a => a.Name == _autoincrement.Name && (bool)a.Value!);
     }
 
     [ConditionalFact]
@@ -94,6 +94,6 @@ public class LibSqlMigrationAnnotationProviderTest
     {
         public int Id { get; set; }
         public long IntProp { get; set; }
-        public string StringProp { get; set; }
+        public string StringProp { get; set; } = null!;
     }
 }

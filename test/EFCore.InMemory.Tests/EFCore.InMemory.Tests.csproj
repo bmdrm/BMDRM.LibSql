@@ -5,6 +5,7 @@
     <AssemblyName>Microsoft.EntityFrameworkCore.InMemory.Tests</AssemblyName>
     <RootNamespace>Microsoft.EntityFrameworkCore</RootNamespace>
     <ImplicitUsings>true</ImplicitUsings>
+    <Nullable>disable</Nullable>
   </PropertyGroup>
 
   <ItemGroup>
@@ -33,6 +34,7 @@
     <Using Include="Microsoft.Extensions.DependencyInjection" />
     <Using Include="Xunit" />
     <Using Include="Xunit.Abstractions" />
+
   </ItemGroup>
 
   <ItemGroup>

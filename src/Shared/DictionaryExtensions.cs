@@ -3,7 +3,6 @@
 
 #nullable enable
 
-using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 
 namespace Microsoft.EntityFrameworkCore.Utilities;
@@ -28,7 +27,7 @@ internal static class DictionaryExtensions
     public static TValue? Find<TKey, TValue>(
         this IReadOnlyDictionary<TKey, TValue> source,
         TKey key)
-        => !source.TryGetValue(key, out var value) ? default : value;
+        => source.GetValueOrDefault(key);
 
     public static bool TryGetAndRemove<TKey, TValue, TReturn>(
         this IDictionary<TKey, TValue> source,
@@ -64,7 +63,7 @@ internal static class DictionaryExtensions
         {
             if (found)
             {
-                pairsRemainder ??= new List<KeyValuePair<TKey, TValue>>();
+                pairsRemainder ??= [];
 
                 pairsRemainder.Add(pair);
                 continue;

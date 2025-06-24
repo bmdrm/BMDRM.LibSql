@@ -20,6 +20,7 @@ namespace Microsoft.EntityFrameworkCore.LibSql.Storage.Json.Internal;
 public sealed class LibSqlJsonDateTimeReaderWriter : JsonValueReaderWriter<DateTime>
 {
     private const string DateTimeFormatConst = @"{0:yyyy\-MM\-dd HH\:mm\:ss.FFFFFFF}";
+    private static readonly PropertyInfo InstanceProperty = typeof(LibSqlJsonDateTimeReaderWriter).GetProperty(nameof(Instance))!;
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -50,4 +51,7 @@ public sealed class LibSqlJsonDateTimeReaderWriter : JsonValueReaderWriter<DateT
     /// </summary>
     public override void ToJsonTyped(Utf8JsonWriter writer, DateTime value)
         => writer.WriteStringValue(string.Format(CultureInfo.InvariantCulture, DateTimeFormatConst, value));
+    /// <inheritdoc />
+    public override Expression ConstructorExpression
+        => Expression.Property(null, InstanceProperty);
 }

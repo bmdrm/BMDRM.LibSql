@@ -20,6 +20,7 @@ namespace Microsoft.EntityFrameworkCore.LibSql.Storage.Json.Internal;
 public sealed class LibSqlJsonDecimalReaderWriter : JsonValueReaderWriter<decimal>
 {
     private const string DecimalFormatConst = "{0:0.0###########################}";
+    private static readonly PropertyInfo InstanceProperty = typeof(LibSqlJsonDecimalReaderWriter).GetProperty(nameof(Instance))!;
 
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
@@ -50,4 +51,10 @@ public sealed class LibSqlJsonDecimalReaderWriter : JsonValueReaderWriter<decima
     /// </summary>
     public override void ToJsonTyped(Utf8JsonWriter writer, decimal value)
         => writer.WriteStringValue(string.Format(CultureInfo.InvariantCulture, DecimalFormatConst, value));
+
+    /// <summary>
+    ///     The expression representing construction of this object.
+    /// </summary>
+    public override Expression ConstructorExpression
+        => Expression.Property(null, InstanceProperty);
 }

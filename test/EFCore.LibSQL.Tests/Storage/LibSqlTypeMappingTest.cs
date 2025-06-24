@@ -64,7 +64,7 @@ public class LibSqlTypeMappingTest : RelationalTypeMappingTest
         => TestServiceFactory.Instance.Create<LibSqlTypeMappingSource>();
 
     public static RelationalTypeMapping GetMapping(Type type)
-        => CreateTypeMapper().FindMapping(type);
+        => CreateTypeMapper().FindMapping(type)!;
 
     public override void DateTimeOffset_literal_generated_correctly()
         => Test_GenerateSqlLiteral_helper(
@@ -126,8 +126,8 @@ public class LibSqlTypeMappingTest : RelationalTypeMappingTest
         using var context = new MismatchedFruityContext(_contextOptions);
         Assert.Equal(
             typeof(short),
-            context.Model.FindEntityType(typeof(Banana)).FindProperty("Id").GetTypeMapping().Converter.ProviderClrType);
-        Assert.Null(context.Model.FindEntityType(typeof(Kiwi)).FindProperty("Id").GetTypeMapping().Converter);
+            context.Model.FindEntityType(typeof(Banana))!.FindProperty("Id")!.GetTypeMapping().Converter!.ProviderClrType);
+        Assert.Null(context.Model.FindEntityType(typeof(Kiwi))!.FindProperty("Id")!.GetTypeMapping().Converter);
     }
 
     private class MismatchedFruityContext : FruityContext
@@ -150,14 +150,14 @@ public class LibSqlTypeMappingTest : RelationalTypeMappingTest
     private class Banana
     {
         public int Id { get; set; }
-        public ICollection<Kiwi> Kiwis { get; set; }
+        public ICollection<Kiwi> Kiwis { get; set; } = null!;
     }
 
     private class Kiwi
     {
         public int Id { get; set; }
         public int BananaId { get; set; }
-        public Banana Banana { get; set; }
+        public Banana Banana { get; set; } = null!;
     }
 
     private class FruityContext : DbContext
@@ -167,8 +167,8 @@ public class LibSqlTypeMappingTest : RelationalTypeMappingTest
         {
         }
 
-        public DbSet<Banana> Bananas { get; set; }
-        public DbSet<Kiwi> Kiwi { get; set; }
+        public DbSet<Banana> Bananas { get; set; } = null!;
+        public DbSet<Kiwi> Kiwi { get; set; } = null!;
     }
 
     protected override DbContextOptions ContextOptions => _contextOptions;

@@ -45,5 +45,5 @@ public class LibSqlQueryTranslationPostprocessorFactory : IQueryTranslationPostp
         => new LibSqlQueryTranslationPostprocessor(
             Dependencies,
             RelationalDependencies,
-            queryCompilationContext);
+            (RelationalQueryCompilationContext)queryCompilationContext);
 }

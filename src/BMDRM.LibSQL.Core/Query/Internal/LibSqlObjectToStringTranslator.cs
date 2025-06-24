@@ -73,33 +73,38 @@ public class LibSqlObjectToStringTranslator : IMethodCallTranslator
 
         if (instance.Type == typeof(bool))
         {
-            if (instance is ColumnExpression { IsNullable: true })
+            if (instance is not ColumnExpression { IsNullable: false })
             {
                 return _sqlExpressionFactory.Case(
+                    instance,
                     new[]
                     {
                         new CaseWhenClause(
-                            _sqlExpressionFactory.Equal(instance, _sqlExpressionFactory.Constant(false)),
+                            _sqlExpressionFactory.Constant(false),
                             _sqlExpressionFactory.Constant(false.ToString())),
                         new CaseWhenClause(
-                            _sqlExpressionFactory.Equal(instance, _sqlExpressionFactory.Constant(true)),
+                            _sqlExpressionFactory.Constant(true),
                             _sqlExpressionFactory.Constant(true.ToString()))
                     },
-                    _sqlExpressionFactory.Constant(null));
+                    _sqlExpressionFactory.Constant(string.Empty));
             }
 
             return _sqlExpressionFactory.Case(
                 new[]
                 {
                     new CaseWhenClause(
-                        _sqlExpressionFactory.Equal(instance, _sqlExpressionFactory.Constant(false)),
-                        _sqlExpressionFactory.Constant(false.ToString()))
+                        instance,
+                        _sqlExpressionFactory.Constant(true.ToString()))
                 },
-                _sqlExpressionFactory.Constant(true.ToString()));
+                _sqlExpressionFactory.Constant(false.ToString()));
         }
 
+        // Enums are handled by EnumMethodTranslator
+
         return TypeMapping.Contains(instance.Type)
-            ? _sqlExpressionFactory.Convert(instance, typeof(string))
+            ? _sqlExpressionFactory.Coalesce(
+                _sqlExpressionFactory.Convert(instance, typeof(string)),
+                _sqlExpressionFactory.Constant(string.Empty))
             : null;
     }
 }

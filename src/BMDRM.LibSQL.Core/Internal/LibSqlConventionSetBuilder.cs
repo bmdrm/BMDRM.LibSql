@@ -102,16 +102,14 @@ namespace Microsoft.EntityFrameworkCore.LibSql.Internal
 
         private static IServiceScope CreateServiceScope(string connectionString = "")
         {
-
             var serviceProvider = new ServiceCollection()
-                .AddLibSql<DbContext>(connectionString)
+                .AddEntityFrameworkLibSql()
                 .AddDbContext<DbContext>(
                     (p, o) =>
                         o.UseLibSql(connectionString)
                             .UseInternalServiceProvider(p))
                 .AddHttpClient()
                 .BuildServiceProvider();
-
             return serviceProvider.GetRequiredService<IServiceScopeFactory>().CreateScope();
         }
     }

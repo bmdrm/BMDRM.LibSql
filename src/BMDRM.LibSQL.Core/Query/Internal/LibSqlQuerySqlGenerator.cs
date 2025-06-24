@@ -1,6 +1,7 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.EntityFrameworkCore.Query.SqlExpressions;
 using Microsoft.EntityFrameworkCore.LibSql.Query.SqlExpressions.Internal;
 
@@ -15,6 +16,9 @@ namespace Microsoft.EntityFrameworkCore.LibSql.Query.Internal;
 /// </summary>
 public class LibSqlQuerySqlGenerator : QuerySqlGenerator
 {
+    private static readonly bool UseOldBehavior36112 =
+        AppContext.TryGetSwitch("Microsoft.EntityFrameworkCore.Issue36112", out var enabled36112) && enabled36112;
+
     /// <summary>
     ///     This is an internal API that supports the Entity Framework Core infrastructure and not subject to
     ///     the same compatibility standards as public APIs. It may be changed or removed without notice in
@@ -81,7 +85,7 @@ public class LibSqlQuerySqlGenerator : QuerySqlGenerator
 
             Visit(
                 selectExpression.Limit
-                ?? new SqlConstantExpression(Expression.Constant(-1), selectExpression.Offset!.TypeMapping));
+                ?? new SqlConstantExpression(-1, selectExpression.Offset!.TypeMapping));
 
             if (selectExpression.Offset != null)
             {
@@ -99,8 +103,63 @@ public class LibSqlQuerySqlGenerator : QuerySqlGenerator
     ///     doing so can result in application failures when updating to a new Entity Framework Core release.
     /// </summary>
     protected override void GenerateSetOperationOperand(SetOperationBase setOperation, SelectExpression operand)
-        // Sqlite doesn't support parentheses around set operation operands
-        => Visit(operand);
+    {
+        // Most databases support parentheses around set operations to determine evaluation order, but LibSql does not;
+        // however, we can instead wrap the nested set operation in a SELECT * FROM () to achieve the same effect.
+        // The following is a copy-paste of the base implementation from QuerySqlGenerator, adding the SELECT.
+
+        // INTERSECT has higher precedence over UNION and EXCEPT, but otherwise evaluation is left-to-right.
+        // To preserve evaluation order, add parentheses whenever a set operation is nested within a different set operation
+        // - including different distinctness.
+        // In addition, EXCEPT is non-commutative (unlike UNION/INTERSECT), so add parentheses for that case too (see #36105).
+        if (!UseOldBehavior36112
+            && TryUnwrapBareSetOperation(operand, out var nestedSetOperation)
+            && (nestedSetOperation is ExceptExpression
+                || nestedSetOperation.GetType() != setOperation.GetType()
+                || nestedSetOperation.IsDistinct != setOperation.IsDistinct))
+        {
+            Sql.AppendLine("SELECT * FROM (");
+
+            using (Sql.Indent())
+            {
+                Visit(operand);
+            }
+
+            Sql.AppendLine().Append(")");
+        }
+        else
+        {
+            Visit(operand);
+        }
+
+        static bool TryUnwrapBareSetOperation(SelectExpression selectExpression, [NotNullWhen(true)] out SetOperationBase? setOperation)
+        {
+            if (selectExpression is
+                {
+                    Tables: [SetOperationBase s],
+                    Predicate: null,
+                    Orderings: [],
+                    Offset: null,
+                    Limit: null,
+                    IsDistinct: false,
+                    Having: null,
+                    GroupBy: []
+                }
+                && selectExpression.Projection.Count == s.Source1.Projection.Count
+                && selectExpression.Projection.Select(
+                        (pe, index) => pe.Expression is ColumnExpression column
+                            && column.TableAlias == s.Alias
+                            && column.Name == s.Source1.Projection[index].Alias)
+                    .All(e => e))
+            {
+                setOperation = s;
+                return true;
+            }
+
+            setOperation = null;
+            return false;
+        }
+    }
 
     private void GenerateGlob(GlobExpression globExpression, bool negated = false)
     {
@@ -136,7 +195,7 @@ public class LibSqlQuerySqlGenerator : QuerySqlGenerator
     /// </summary>
     protected virtual void GenerateJsonEach(JsonEachExpression jsonEachExpression)
     {
-        // json_each docs: https://www.sqlite.org/json1.html#jeach
+        // json_each docs: https://www.LibSql.org/json1.html#jeach
 
         // json_each is a regular table-valued function; however, since it accepts an (optional) JSONPATH argument - which we represent
         // as IReadOnlyList<PathSegment>, and that can only be rendered as a string here in the QuerySqlGenerator, we have a special
@@ -151,7 +210,7 @@ public class LibSqlQuerySqlGenerator : QuerySqlGenerator
         {
             Sql.Append(", ");
 
-            // Note the difference with the JSONPATH rendering in VisitJsonScalar below, where we take advantage of SQLite's ->> operator
+            // Note the difference with the JSONPATH rendering in VisitJsonScalar below, where we take advantage of LibSql's ->> operator
             // (we can't do that here).
             Sql.Append("'$");
 
@@ -227,7 +286,7 @@ public class LibSqlQuerySqlGenerator : QuerySqlGenerator
                 case { PropertyName: string propertyName }:
                     if (inJsonpathString)
                     {
-                        Sql.Append(".").Append(propertyName);
+                        Sql.Append(".").Append(Dependencies.SqlGenerationHelper.DelimitJsonPathElement(propertyName));
                         continue;
                     }
 
@@ -236,11 +295,11 @@ public class LibSqlQuerySqlGenerator : QuerySqlGenerator
                     // No need to start a $. JSONPATH string if we're the last segment or the next segment isn't a constant
                     if (isLast || path[i + 1] is { ArrayIndex: not null and not SqlConstantExpression })
                     {
-                        Sql.Append("'").Append(propertyName).Append("'");
+                        Sql.Append("'").Append(Dependencies.SqlGenerationHelper.DelimitJsonPathElement(propertyName)).Append("'");
                         continue;
                     }
 
-                    Sql.Append("'$.").Append(propertyName);
+                    Sql.Append("'$.").Append(Dependencies.SqlGenerationHelper.DelimitJsonPathElement(propertyName));
                     inJsonpathString = true;
                     continue;
 
@@ -364,7 +423,7 @@ public class LibSqlQuerySqlGenerator : QuerySqlGenerator
     /// </summary>
     protected override bool TryGetOperatorInfo(SqlExpression expression, out int precedence, out bool isAssociative)
     {
-        // See https://sqlite.org/lang_expr.html#operators_and_parse_affecting_attributes
+        // See https://LibSql.org/lang_expr.html#operators_and_parse_affecting_attributes
         (precedence, isAssociative) = expression switch
         {
             SqlBinaryExpression sqlBinaryExpression => sqlBinaryExpression.OperatorType switch

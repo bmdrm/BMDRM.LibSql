@@ -23,12 +23,15 @@ namespace Microsoft.Data.Sqlite
     /// <seealso href="https://docs.microsoft.com/dotnet/standard/data/sqlite/async">Async Limitations</seealso>
     public partial class SqliteConnection : DbConnection
     {
+        private static readonly bool UseOldBehavior35715 =
+            AppContext.TryGetSwitch("Microsoft.EntityFrameworkCore.Issue35715", out var enabled35715) && enabled35715;
+
         internal const string MainDatabaseName = "main";
 
         private const int SQLITE_WIN32_DATA_DIRECTORY_TYPE = 1;
         private const int SQLITE_WIN32_TEMP_DIRECTORY_TYPE = 2;
 
-        private readonly List<WeakReference<SqliteCommand>> _commands = new();
+        private readonly List<WeakReference<SqliteCommand>> _commands = [];
 
         private Dictionary<string, (object? state, strdelegate_collation? collation)>? _collations;
 
@@ -48,6 +51,8 @@ namespace Microsoft.Data.Sqlite
         private static readonly StateChangeEventArgs _fromClosedToOpenEventArgs = new StateChangeEventArgs(ConnectionState.Closed, ConnectionState.Open);
         private static readonly StateChangeEventArgs _fromOpenToClosedEventArgs = new StateChangeEventArgs(ConnectionState.Open, ConnectionState.Closed);
 
+        private static string[]? NativeDllSearchDirectories;
+
         static SqliteConnection()
         {
             Type.GetType("SQLitePCL.Batteries_V2, SQLitePCLRaw.batteries_v2")
@@ -66,7 +71,7 @@ namespace Microsoft.Data.Sqlite
                     storageFolderType = Type.GetType("Windows.Storage.StorageFolder, Windows, ContentType=WindowsRuntime")
                         ?? Type.GetType("Windows.Storage.StorageFolder, Microsoft.Windows.SDK.NET");
                 }
-                catch (Exception)
+                catch
                 {
                     // Ignore "Could not load assembly." or any type initialization error.
                 }
@@ -225,7 +230,7 @@ namespace Microsoft.Data.Sqlite
         /// <summary>
         ///     Empties the connection pool.
         /// </summary>
-        /// <remarks>Any open connections will not be returned the the pool when closed.</remarks>
+        /// <remarks>Any open connections will not be returned to the pool when closed.</remarks>
         public static void ClearAllPools()
             => SqliteConnectionFactory.Instance.ClearPools();
 
@@ -233,7 +238,7 @@ namespace Microsoft.Data.Sqlite
         ///     Empties the connection pool associated with the connection.
         /// </summary>
         /// <param name="connection">The connection.</param>
-        /// <remarks>Any open connections will not be returned the the pool when closed.</remarks>
+        /// <remarks>Any open connections will not be returned to the pool when closed.</remarks>
         public static void ClearPool(SqliteConnection connection)
             => connection.PoolGroup.Clear();
 
@@ -338,22 +343,18 @@ namespace Microsoft.Data.Sqlite
 
             Transaction?.Dispose();
 
-            for (var i = _commands.Count - 1; i >= 0; i--)
+            var commands = _commands;
+            for (var i = commands.Count - 1; i >= 0; i--)
             {
-                var reference = _commands[i];
+                var reference = commands[i];
                 if (reference.TryGetTarget(out var command))
                 {
                     // NB: Calls RemoveCommand()
                     command.Dispose();
                 }
-                else
-                {
-                    _commands.RemoveAt(i);
-                }
             }
 
-            Debug.Assert(_commands.Count == 0);
-
+            _commands.Clear();
             _innerConnection!.Close();
             _innerConnection = null;
 
@@ -448,7 +449,9 @@ namespace Microsoft.Data.Sqlite
         {
             for (var i = _commands.Count - 1; i >= 0; i--)
             {
-                if (_commands[i].TryGetTarget(out var item)
+                var reference = _commands[i];
+                if (reference != null
+                    && reference.TryGetTarget(out var item)
                     && item == command)
                 {
                     _commands.RemoveAt(i);
@@ -626,11 +629,82 @@ namespace Microsoft.Data.Sqlite
 
         private void LoadExtensionCore(string file, string? proc)
         {
-            var rc = sqlite3_load_extension(Handle, utf8z.FromString(file), utf8z.FromString(proc), out var errmsg);
-            if (rc != SQLITE_OK)
+            if (UseOldBehavior35715)
             {
-                throw new SqliteException(Resources.SqliteNativeError(rc, errmsg.utf8_to_string()), rc, rc);
+                var rc = sqlite3_load_extension(Handle, utf8z.FromString(file), utf8z.FromString(proc), out var errmsg);
+                if (rc != SQLITE_OK)
+                {
+                    throw new SqliteException(Resources.SqliteNativeError(rc, errmsg.utf8_to_string()), rc, rc);
+                }
             }
+            else
+            {
+                SqliteException? firstException = null;
+                foreach (var path in GetLoadExtensionPaths(file))
+                {
+                    var rc = sqlite3_load_extension(Handle, utf8z.FromString(path), utf8z.FromString(proc), out var errmsg);
+                    if (rc == SQLITE_OK)
+                    {
+                        return;
+                    }
+
+                    if (firstException == null)
+                    {
+                        // We store the first exception so that error message looks more obvious if file appears in there
+                        firstException = new SqliteException(Resources.SqliteNativeError(rc, errmsg.utf8_to_string()), rc, rc);
+                    }
+                }
+
+                if (firstException != null)
+                {
+                    throw firstException;
+                }
+            }
+        }
+
+        private static IEnumerable<string> GetLoadExtensionPaths(string file)
+        {
+            // we always try original input first
+            yield return file;
+
+            string? dirName = Path.GetDirectoryName(file);
+
+            // we don't try to guess directories for user, if they pass a path either absolute or relative - they're on their own
+            if (!string.IsNullOrEmpty(dirName))
+            {
+                yield break;
+            }
+
+            bool shouldTryAddingLibPrefix = !file.StartsWith("lib", StringComparison.Ordinal) && !RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
+
+            if (shouldTryAddingLibPrefix)
+            {
+                yield return $"lib{file}";
+            }
+
+            NativeDllSearchDirectories ??= GetNativeDllSearchDirectories();
+
+            foreach (string dir in NativeDllSearchDirectories)
+            {
+                yield return Path.Combine(dir, file);
+
+                if (shouldTryAddingLibPrefix)
+                {
+                    yield return Path.Combine(dir, $"lib{file}");
+                }
+            }
+        }
+
+        private static string[] GetNativeDllSearchDirectories()
+        {
+            string? searchDirs = AppContext.GetData("NATIVE_DLL_SEARCH_DIRECTORIES") as string;
+
+            if (string.IsNullOrEmpty(searchDirs))
+            {
+                return [];
+            }
+
+            return searchDirs!.Split([ Path.PathSeparator ], StringSplitOptions.RemoveEmptyEntries);
         }
 
         /// <summary>
@@ -690,22 +764,22 @@ namespace Microsoft.Data.Sqlite
         }
 
         /// <summary>
-        ///     Returns schema information for the data source of this conneciton.
+        ///     Returns schema information for the data source of this connection.
         /// </summary>
         /// <returns>Schema information.</returns>
         public override DataTable GetSchema()
             => GetSchema(DbMetaDataCollectionNames.MetaDataCollections);
 
         /// <summary>
-        ///     Returns schema information for the data source of this conneciton.
+        ///     Returns schema information for the data source of this connection.
         /// </summary>
         /// <param name="collectionName">The name of the schema.</param>
         /// <returns>Schema information.</returns>
         public override DataTable GetSchema(string collectionName)
-            => GetSchema(collectionName, Array.Empty<string>());
+            => GetSchema(collectionName, []);
 
         /// <summary>
-        ///     Returns schema information for the data source of this conneciton.
+        ///     Returns schema information for the data source of this connection.
         /// </summary>
         /// <param name="collectionName">The name of the schema.</param>
         /// <param name="restrictionValues">The restrictions.</param>
@@ -752,7 +826,7 @@ namespace Microsoft.Data.Sqlite
                     rc = sqlite3_keyword_name(i, out keyword);
                     SqliteException.ThrowExceptionForRC(rc, null);
 
-                    dataTable.Rows.Add(new object[] { keyword });
+                    dataTable.Rows.Add([keyword]);
                 }
 
                 return dataTable;
@@ -933,28 +1007,21 @@ namespace Microsoft.Data.Sqlite
             return values;
         }
 
-        private sealed class AggregateDefinition<TAccumulate, TResult>
+        private sealed class AggregateDefinition<TAccumulate, TResult>(
+            string name,
+            TAccumulate seed,
+            Func<TAccumulate, SqliteValueReader, TAccumulate>? func,
+            Func<TAccumulate, TResult>? resultSelector)
         {
-            public AggregateDefinition(string name, TAccumulate seed, Func<TAccumulate, SqliteValueReader, TAccumulate>? func, Func<TAccumulate, TResult>? resultSelector)
-            {
-                Name = name;
-                Seed = seed;
-                Func = func;
-                ResultSelector = resultSelector;
-            }
-
-            public string Name { get; }
-            public TAccumulate Seed { get; }
-            public Func<TAccumulate, SqliteValueReader, TAccumulate>? Func { get; }
-            public Func<TAccumulate, TResult>? ResultSelector { get; }
+            public string Name { get; } = name;
+            public TAccumulate Seed { get; } = seed;
+            public Func<TAccumulate, SqliteValueReader, TAccumulate>? Func { get; } = func;
+            public Func<TAccumulate, TResult>? ResultSelector { get; } = resultSelector;
         }
 
-        private sealed class AggregateContext<T>
+        private sealed class AggregateContext<T>(T seed)
         {
-            public AggregateContext(T seed)
-                => Accumulate = seed;
-
-            public T Accumulate { get; set; }
+            public T Accumulate { get; set; } = seed;
             public Exception? Exception { get; set; }
         }
 

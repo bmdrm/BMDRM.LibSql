@@ -9,7 +9,7 @@ Install the package into your project and then use either [dotnet-ef](https://ww
 By default, the package will install with `PrivateAssets="All" `so that the tooling assembly will not be included with your published app. For example:
 
 ```xml
-<PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.2">
+<PackageReference Include="Microsoft.EntityFrameworkCore.Design">
     <PrivateAssets>all</PrivateAssets>
     <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 </PackageReference>
@@ -17,7 +17,7 @@ By default, the package will install with `PrivateAssets="All" `so that the tool
 
 ## Getting started with EF Core
 
-See [Getting started with EF Core](https://learn.microsoft.com/ef/core/get-started/overview/install) for more information about EF NuGet packages, including which to install when getting started.
+See [Getting started with EF Core](https://learn.microsoft.com/ef/core/get-started/overview/install) for more information about EF NuGet packag[BMDRM.LibSQL.Core.csproj](../BMDRM.LibSQL.Core/BMDRM.LibSQL.Core.csproj)es, including which to install when getting started.
 
 ## Feedback
 

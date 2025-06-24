@@ -21,10 +21,10 @@ public class DbSetAsTableNameLibSqlTest : DbSetAsTableNameTest
     }
 
     protected override string GetTableName<TEntity>(DbContext context)
-        => context.Model.FindEntityType(typeof(TEntity)).GetTableName();
+        => context.Model.FindEntityType(typeof(TEntity))!.GetTableName()!;
 
     protected override string GetTableName<TEntity>(DbContext context, string entityTypeName)
-        => context.Model.FindEntityType(entityTypeName).GetTableName();
+        => context.Model.FindEntityType(entityTypeName)!.GetTableName()!;
 
     protected override SetsContext CreateContext()
         => new LibSqlSetsContext(_serviceProvider);
